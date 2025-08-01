@@ -43,14 +43,43 @@ export function MobileIssueRental() {
   const [challanDate, setChallanDate] = useState(new Date().toISOString().split("T")[0]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [driverName, setDriverName] = useState("");
   const [stockData, setStockData] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(false);
   const [stockValidation, setStockValidation] = useState<StockValidation[]>([]);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [showClientSelector, setShowClientSelector] = useState(false);
+  const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
 
-  useEffect(() => { fetchStockData(); generateNextChallanNumber(); }, []);
-  useEffect(() => { if (Object.keys(quantities).length > 0) validateStockAvailability(); }, [quantities, stockData]);
+  useEffect(() => { 
+    fetchStockData(); 
+    generateNextChallanNumber();
+    fetchPreviousDriverNames();
+  }, []);
+  
+  useEffect(() => { 
+    if (Object.keys(quantities).length > 0) validateStockAvailability(); 
+  }, [quantities, stockData]);
+
+  async function fetchPreviousDriverNames() {
+    try {
+      const { data } = await supabase
+        .from('challans')
+        .select('driver_name')
+        .not('driver_name', 'is', null)
+        .order('created_at', { ascending: false });
+
+      if (data) {
+        // Filter out null values and get unique driver names
+        const uniqueDrivers = [...new Set(data
+          .map(challan => challan.driver_name)
+          .filter(name => name && name.trim()))] as string[];
+        setPreviousDrivers(uniqueDrivers);
+      }
+    } catch (error) {
+      console.error('Error fetching previous driver names:', error);
+    }
+  }
 
   async function fetchStockData() {
     try {
@@ -178,7 +207,8 @@ export function MobileIssueRental() {
         .insert([{
           challan_number: challanNumber,
           client_id: selectedClient!.id,
-          challan_date: challanDate
+          challan_date: challanDate,
+          driver_name: driverName || null
         }])
         .select()
         .single();
@@ -208,6 +238,7 @@ export function MobileIssueRental() {
           site: selectedClient!.site || "",
           mobile: selectedClient!.mobile_number || ""
         },
+        driver_name: driverName,
         plates: validItems.map(size => ({
           size,
           quantity: quantities[size],
@@ -225,6 +256,7 @@ export function MobileIssueRental() {
       setQuantities({});
       setNotes({});
       setChallanNumber("");
+      setDriverName("");
       setSelectedClient(null);
       setStockValidation([]);
       setChallanData(null);
@@ -565,35 +597,55 @@ export function MobileIssueRental() {
 
             <div className="p-2 space-y-2">
               {/* Compact Form Header */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                    ચલણ નંબર *
-                  </label>
-                  <input
-                    type="text"
-                    value={challanNumber}
-                    onChange={(e) => handleChallanNumberChange(e.target.value)}
-                    onFocus={(e) => e.target.select()}
-                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
-                    placeholder={suggestedChallanNumber}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                    તારીખ *
-                  </label>
-                  <input
-                    type="date"
-                    value={challanDate}
-                    onChange={(e) => setChallanDate(e.target.value)}
-                    required
-                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
-                  />
-                </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                  ચલણ નંબર *
+                </label>
+                <input
+                  type="text"
+                  value={challanNumber}
+                  onChange={(e) => handleChallanNumberChange(e.target.value)}
+                  onFocus={(e) => e.target.select()}
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                  placeholder={suggestedChallanNumber}
+                  required
+                />
               </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                  તારીખ *
+                </label>
+                <input
+                  type="date"
+                  value={challanDate}
+                  onChange={(e) => setChallanDate(e.target.value)}
+                  required
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                />
+              </div>
+            </div>
+            <div className="mt-2">
+              <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                ડ્રાઈવરનું નામ
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={driverName}
+                  onChange={e => setDriverName(e.target.value)}
+                  list="driver-suggestions"
+                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                  placeholder="ડ્રાઈવરનું નામ દાખલ કરો"
+                />
+                <datalist id="driver-suggestions">
+                  {previousDrivers.map((driver, index) => (
+                    <option key={index} value={driver} />
+                  ))}
+                </datalist>
+              </div>
+            </div>
 
               {/* Stock Warning */}
               {stockValidation.length > 0 && (

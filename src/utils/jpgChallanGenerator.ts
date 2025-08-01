@@ -11,6 +11,7 @@ export interface ChallanData {
     site: string;
     mobile: string;
   };
+  driver_name?: string;
   plates: Array<{
     size: string;
     quantity: number;
@@ -33,6 +34,7 @@ interface TemplateCoordinates {
   notes_x: number;
   total: { x: number; y: number };
   second_total: { x: number; y: number };
+  driver_name: { x: number; y: number };
 }
 
 const TEMPLATES = {
@@ -55,7 +57,8 @@ const COORDINATES: Record<'issue' | 'return', TemplateCoordinates> = {
     quantity_x: 740,    // Increased spacing for quantity column
     notes_x: 1190,      // Increased spacing for notes column
     total: { x: 700, y: 2750 },
-    second_total: { x: 1420, y: 3180 } // Added second total 100px below
+    second_total: { x: 1420, y: 3180 }, // Added second total 100px below
+    driver_name: { x: 1930, y: 2492 }    // Driver name next to total, adjusted position
   },
   return: {
     challan_number: { x: 520, y: 800 },
@@ -70,7 +73,8 @@ const COORDINATES: Record<'issue' | 'return', TemplateCoordinates> = {
     quantity_x: 740,    // Increased spacing for quantity column
     notes_x: 1190,      // Increased spacing for notes column
     total: { x: 700, y: 2750 },
-    second_total: { x: 1420, y: 3180 } // Added second total 100px below
+    second_total: { x: 1420, y: 3180 }, // Added second total 100px below
+    driver_name: { x: 1930, y: 2492 }    // Driver name next to total, adjusted position
   }
 };
 
@@ -244,6 +248,18 @@ function renderTotal(
     60,  // Further increased font size
     'bold'
   );
+
+  // Render driver's name next to the total if available
+  if (data.driver_name) {
+    renderHighContrastText(
+      ctx,
+      data.driver_name,
+      coords.driver_name.x,
+      coords.driver_name.y,
+      60,  // Same size as total
+      'bold'  // Make it bold like the total
+    );
+  }
 
   // Render the second total (100 + current total)
   renderHighContrastText(

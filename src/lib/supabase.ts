@@ -78,6 +78,7 @@ export type Database = {
           challan_date: string
           status: string
           created_at: string
+          driver_name: string | null
         }
         Insert: {
           id?: number
@@ -86,6 +87,7 @@ export type Database = {
           challan_date: string
           status?: string
           created_at?: string
+          driver_name?: string | null
         }
         Update: {
           id?: number
@@ -94,6 +96,7 @@ export type Database = {
           challan_date?: string
           status?: string
           created_at?: string
+          driver_name?: string | null
         }
       }
       challan_items: {

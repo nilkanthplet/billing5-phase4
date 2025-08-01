@@ -38,15 +38,51 @@ export function MobileReturnPage() {
   const [returnChallanNumber, setReturnChallanNumber] = useState("");
   const [suggestedChallanNumber, setSuggestedChallanNumber] = useState("");
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split("T")[0]);
+  const [driverName, setDriverName] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [showClientSelector, setShowClientSelector] = useState(false);
   const [outstandingPlates, setOutstandingPlates] = useState<OutstandingPlates>({});
+  const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
 
-  useEffect(() => { generateNextChallanNumber(); }, []);
+  useEffect(() => { 
+    generateNextChallanNumber(); 
+    fetchPreviousDriverNames();
+  }, []);
   useEffect(() => { if (selectedClient) fetchOutstandingPlates(); }, [selectedClient]);
+
+  async function fetchPreviousDriverNames() {
+    try {
+      // Get drivers from both challans and returns
+      const [{ data: challanDrivers }, { data: returnDrivers }] = await Promise.all([
+        supabase
+          .from('challans')
+          .select('driver_name')
+          .not('driver_name', 'is', null)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('returns')
+          .select('driver_name')
+          .not('driver_name', 'is', null)
+          .order('return_date', { ascending: false })
+      ]);
+
+      if (challanDrivers || returnDrivers) {
+        // Combine and filter unique driver names from both tables
+        const allDrivers = [...(challanDrivers || []), ...(returnDrivers || [])]
+          .map(record => record.driver_name)
+          .filter((name): name is string => name !== null && name.trim() !== '');
+        
+        // Get unique drivers maintaining the order of first appearance
+        const uniqueDrivers = [...new Set(allDrivers)];
+        setPreviousDrivers(uniqueDrivers);
+      }
+    } catch (error) {
+      console.error('Error fetching previous driver names:', error);
+    }
+  }
 
   async function fetchOutstandingPlates() {
     if (!selectedClient) return;
@@ -187,7 +223,8 @@ export function MobileReturnPage() {
         .insert([{
           return_challan_number: returnChallanNumber,
           client_id: selectedClient!.id,
-          return_date: returnDate
+          return_date: returnDate,
+          driver_name: driverName || null
         }])
         .select()
         .single();
@@ -217,6 +254,7 @@ export function MobileReturnPage() {
           site: selectedClient!.site || "",
           mobile: selectedClient!.mobile_number || ""
         },
+        driver_name: driverName || undefined,
         plates: validItems.map(size => ({
           size,
           quantity: quantities[size],
@@ -238,6 +276,7 @@ export function MobileReturnPage() {
       setChallanData(null);
       setShowClientSelector(false);
       setOutstandingPlates({});
+      setDriverName("");
 
       alert(`જમા ચલણ ${returnRecord.return_challan_number} સફળતાપૂર્વક બનાવવામાં આવ્યું અને ડાઉનલોડ થયું!`);
     } catch (error) {
@@ -546,6 +585,27 @@ export function MobileReturnPage() {
                     required
                     className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-green-200 focus:border-green-400"
                   />
+                </div>
+
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                    ડ્રાઈવરનું નામ
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={driverName}
+                      onChange={(e) => setDriverName(e.target.value)}
+                      list="driver-suggestions"
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-green-200 focus:border-green-400"
+                      placeholder="ડ્રાઈવરનું નામ દાખલ કરો"
+                    />
+                    <datalist id="driver-suggestions">
+                      {previousDrivers.map((driver, index) => (
+                        <option key={index} value={driver} />
+                      ))}
+                    </datalist>
+                  </div>
                 </div>
               </div>
 

@@ -18,6 +18,7 @@ export interface ChallanData {
   challan_number: string;
   date: string;
   client: Client;
+  driver_name?: string;
   plates: PlateEntry[];
   total_quantity: number;
 }

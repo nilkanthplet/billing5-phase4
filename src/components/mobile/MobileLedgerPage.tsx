@@ -162,8 +162,10 @@ export function MobileLedgerPage() {
             client_id: challan.client_id,
             items: challan.challan_items.map(item => ({
               plate_size: item.plate_size,
-              quantity: item.borrowed_quantity
-            }))
+              quantity: item.borrowed_quantity,
+              notes: item.notes || ''
+            })),
+            driver_name: challan.driver_name
           })),
           ...clientReturns.map(returnRecord => ({
             type: 'jama' as const,
@@ -173,8 +175,10 @@ export function MobileLedgerPage() {
             client_id: returnRecord.client_id,
             items: returnRecord.return_line_items.map(item => ({
               plate_size: item.plate_size,
-              quantity: item.returned_quantity
-            }))
+              quantity: item.returned_quantity,
+              notes: item.damage_notes || ''
+            })),
+            driver_name: returnRecord.driver_name
           }))
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
@@ -219,10 +223,11 @@ export function MobileLedgerPage() {
           site: client.site || '',
           mobile: client.mobile_number || ''
         },
+        driver_name: transaction.driver_name || undefined,
         plates: transaction.items.map(item => ({
           size: item.plate_size,
           quantity: item.quantity,
-          notes: '',
+          notes: item.notes || '',
         })),
         total_quantity: transaction.items.reduce((sum, item) => sum + item.quantity, 0)
       };
