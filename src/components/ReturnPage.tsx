@@ -136,7 +136,6 @@ export function ReturnPage() {
           plate_size: size,
           returned_quantity: quantities[size],
           damage_notes: overallNote.trim() || null,
-          partner_stock_notes: overallNote.trim() || null
         }))
 
       // Create the return record (even if no line items)

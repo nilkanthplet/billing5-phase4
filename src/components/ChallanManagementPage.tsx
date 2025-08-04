@@ -38,7 +38,6 @@ interface UdharChallan {
   challan_items: {
     plate_size: string;
     borrowed_quantity: number;
-    partner_stock_notes?: string;
   }[];
   total_plates: number;
 }
@@ -183,7 +182,7 @@ export function ChallanManagementPage() {
           date: data.challan_date,
           client_id: data.client_id,
           plates,
-          note: data.challan_items[0]?.partner_stock_notes || ''
+          note: ''
         });
       } else {
         const { data, error } = await supabase
@@ -251,7 +250,6 @@ export function ChallanManagementPage() {
             challan_id: editingChallan.id,
             plate_size,
             borrowed_quantity: quantity,
-            partner_stock_notes: editingChallan.note || null
           }));
 
         if (newItems.length > 0) {

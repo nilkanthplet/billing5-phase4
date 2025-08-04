@@ -93,12 +93,11 @@ export function UdharForm({ selectedClient, onChallanCreated }: UdharFormProps) 
       const lineItems = validItems.map(size => ({
         challan_id: challan.id,
         plate_size: size,
-        count: plateQuantities[size],
-        notes: notes[size] || ''
+        borrowed_quantity: plateQuantities[size]
       }))
 
       const { error: lineItemsError } = await supabase
-        .from('challan_line_items')
+        .from('challan_items')
         .insert(lineItems)
 
       if (lineItemsError) throw lineItemsError
