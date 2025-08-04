@@ -218,8 +218,7 @@ export function MobileIssueRental() {
       const lineItems = validItems.map(size => ({
         challan_id: challan.id,
         plate_size: size,
-        borrowed_quantity: quantities[size],
-        partner_stock_notes: notes[size]?.trim() || null
+        borrowed_quantity: quantities[size]
       }));
 
       const { error: lineItemsError } = await supabase

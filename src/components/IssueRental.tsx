@@ -29,7 +29,6 @@ export function IssueRental() {
   const [suggestedChallanNumber, setSuggestedChallanNumber] = useState('')
   const [challanDate, setChallanDate] = useState(new Date().toISOString().split('T')[0])
   const [quantities, setQuantities] = useState<Record<string, number>>({})
-  const [plateNotes, setPlateNotes] = useState<Record<string, string>>({}) // ADD THIS MISSING STATE
   const [overallNote, setOverallNote] = useState('')
   const [stockData, setStockData] = useState<Stock[]>([])
   const [loading, setLoading] = useState(false)
@@ -190,8 +189,7 @@ export function IssueRental() {
       const lineItems = validItems.map(size => ({
         challan_id: challan.id,
         plate_size: size,
-        borrowed_quantity: quantities[size],
-        partner_stock_notes: plateNotes[size]?.trim() || null // FIX: Use plateNotes instead of overallNote
+        borrowed_quantity: quantities[size]
       }))
 
       const { error: lineItemsError } = await supabase
@@ -214,7 +212,7 @@ export function IssueRental() {
         plates: validItems.map(size => ({
           size,
           quantity: quantities[size],
-          notes: plateNotes[size] || '', // FIX: Use per-plate notes
+          notes: overallNote || '',
         })),
         total_quantity: validItems.reduce((sum, size) => sum + quantities[size], 0)
       };
@@ -229,7 +227,6 @@ export function IssueRental() {
         downloadJPGChallan(jpgDataUrl, `issue-challan-${challan.challan_number}`);
 
         setQuantities({})
-        setPlateNotes({}) // FIX: Reset plateNotes too
         setOverallNote('')
         setChallanNumber('')
         setSelectedClient(null)
@@ -376,9 +373,6 @@ export function IssueRental() {
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 border-b">
                       Quantity to Borrow
                     </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 border-b">
-                      Notes
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -418,19 +412,6 @@ export function IssueRental() {
                             </p>
                           )}
                         </td>
-                        <td className="px-4 py-3">
-                          {/* FIXED: Moved note field to proper table cell */}
-                          <textarea
-                            value={plateNotes[size] || ''}
-                            onChange={(e) => setPlateNotes(prev => ({
-                              ...prev,
-                              [size]: e.target.value
-                            }))}
-                            className="w-full px-2 py-1 border border-gray-300 rounded text-sm resize-none"
-                            rows={2}
-                            placeholder="Enter notes..."
-                          />
-                        </td>
                       </tr>
                     )
                   })}
@@ -441,7 +422,7 @@ export function IssueRental() {
             {/* Overall Note */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Overall Note (Required for insufficient stock items)
+                Overall Note
               </label>
               <textarea
                 value={overallNote}
