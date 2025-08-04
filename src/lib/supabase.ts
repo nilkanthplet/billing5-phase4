@@ -106,7 +106,6 @@ export type Database = {
           plate_size: string
           borrowed_quantity: number
           returned_quantity: number
-          partner_stock_notes: string | null
           status: string
           created_at: string
         }
@@ -116,7 +115,6 @@ export type Database = {
           plate_size: string
           borrowed_quantity: number
           returned_quantity?: number
-          partner_stock_notes?: string | null
           status?: string
           created_at?: string
         }
@@ -126,7 +124,6 @@ export type Database = {
           plate_size?: string
           borrowed_quantity?: number
           returned_quantity?: number
-          partner_stock_notes?: string | null
           status?: string
           created_at?: string
         }
@@ -161,7 +158,6 @@ export type Database = {
           plate_size: string
           returned_quantity: number
           damage_notes: string | null
-          partner_stock_notes: string | null
           created_at: string
         }
         Insert: {
@@ -170,7 +166,6 @@ export type Database = {
           plate_size: string
           returned_quantity: number
           damage_notes?: string | null
-          partner_stock_notes?: string | null
           created_at?: string
         }
         Update: {
@@ -179,7 +174,6 @@ export type Database = {
           plate_size?: string
           returned_quantity?: number
           damage_notes?: string | null
-          partner_stock_notes?: string | null
           created_at?: string
         }
       }
