@@ -43,6 +43,7 @@ export function MobileIssueRental() {
   const [challanDate, setChallanDate] = useState(new Date().toISOString().split("T")[0]);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [borrowedStock, setBorrowedStock] = useState<Record<string, number>>({});
   const [driverName, setDriverName] = useState("");
   const [stockData, setStockData] = useState<Stock[]>([]);
   const [loading, setLoading] = useState(false);
@@ -171,6 +172,11 @@ export function MobileIssueRental() {
     setNotes(prev => ({ ...prev, [size]: value }));
   }
 
+  function handleBorrowedStockChange(size: string, value: string) {
+    const quantity = parseInt(value) || 0;
+    setBorrowedStock(prev => ({ ...prev, [size]: quantity }));
+  }
+
   async function checkChallanNumberExists(challanNumber: string) {
     const { data, error } = await supabase
       .from("challans")
@@ -218,7 +224,8 @@ export function MobileIssueRental() {
       const lineItems = validItems.map(size => ({
         challan_id: challan.id,
         plate_size: size,
-        borrowed_quantity: quantities[size]
+        borrowed_quantity: quantities[size],
+        borrowed_stock: borrowedStock[size] || 0
       }));
 
       const { error: lineItemsError } = await supabase
@@ -662,6 +669,7 @@ export function MobileIssueRental() {
                       <th className="px-1 py-1 font-medium text-left">સાઇઝ</th>
                       <th className="px-1 py-1 font-medium text-center">સ્ટોક</th>
                       <th className="px-1 py-1 font-medium text-center">ઇશ્યૂ</th>
+                      <th className="px-1 py-1 font-medium text-center">ઉધાર સ્ટોક</th>
                       <th className="px-1 py-1 font-medium text-center">નોંધ</th>
                     </tr>
                   </thead>
@@ -695,6 +703,16 @@ export function MobileIssueRental() {
                                 માત્ર {stockValidation.find(item => item.size === size)?.available}
                               </div>
                             )}
+                          </td>
+                          <td className="px-1 py-1 text-center">
+                            <input
+                              type="number"
+                              min={0}
+                              value={borrowedStock[size] || ""}
+                              onChange={e => handleBorrowedStockChange(size, e.target.value)}
+                              className="w-10 px-0.5 py-0.5 border border-blue-300 rounded text-center bg-blue-50"
+                              placeholder="0"
+                            />
                           </td>
                           <td className="px-1 py-1 text-center">
                             <input
