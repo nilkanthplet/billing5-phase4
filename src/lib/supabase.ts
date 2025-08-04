@@ -108,6 +108,7 @@ export type Database = {
           returned_quantity: number
           status: string
           created_at: string
+          borrowed_stock: number
         }
         Insert: {
           id?: number
@@ -117,6 +118,7 @@ export type Database = {
           returned_quantity?: number
           status?: string
           created_at?: string
+          borrowed_stock?: number
         }
         Update: {
           id?: number
@@ -126,6 +128,7 @@ export type Database = {
           returned_quantity?: number
           status?: string
           created_at?: string
+          borrowed_stock?: number
         }
       }
       returns: {
