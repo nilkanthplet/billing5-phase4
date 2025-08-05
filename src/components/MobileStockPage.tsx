@@ -354,6 +354,7 @@ export function MobileStockPage() {
                     plateSize={plateSize}
                     stockData={stockMap[plateSize]}
                     borrowedStock={borrowedStockMap[plateSize] || 0}
+                    damageData={damageStockMap[plateSize] || { damaged: 0, lost: 0 }}
                     onUpdate={handleUpdateStock}
                     isAdmin={user?.isAdmin || false}
                   />
