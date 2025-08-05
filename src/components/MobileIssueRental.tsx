@@ -250,6 +250,7 @@ export function MobileIssueRental() {
         plates: validItems.map(size => ({
           size,
           quantity: quantities[size],
+          borrowed_stock: borrowedStock[size] || 0,
           notes: notes[size] || "",
         })),
         total_quantity: validItems.reduce((sum, size) => sum + quantities[size], 0)

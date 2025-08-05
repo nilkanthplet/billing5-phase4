@@ -15,6 +15,7 @@ export interface ChallanData {
   plates: Array<{
     size: string;
     quantity: number;
+    borrowed_stock?: number;
     notes?: string;
   }>;
   total_quantity: number;
@@ -31,6 +32,7 @@ interface TemplateCoordinates {
   row_height: number;
   plate_size_x: number;
   quantity_x: number;
+  borrowed_x: number;
   notes_x: number;
   total: { x: number; y: number };
   second_total: { x: number; y: number };
@@ -54,11 +56,12 @@ const COORDINATES: Record<'issue' | 'return', TemplateCoordinates> = {
     table_start: { x: 900, y: 1570 },
     row_height: 130,
     plate_size_x: 220,
-    quantity_x: 740,    // Increased spacing for quantity column
-    notes_x: 1190,      // Increased spacing for notes column
+    quantity_x: 740,    // Spacing for quantity column
+    borrowed_x: 965,    // Added borrowed column
+    notes_x: 1190,      // Notes column
     total: { x: 700, y: 2750 },
-    second_total: { x: 1420, y: 3180 }, // Added second total 100px below
-    driver_name: { x: 1930, y: 2492 }    // Driver name next to total, adjusted position
+    second_total: { x: 1420, y: 3180 }, // Second total
+    driver_name: { x: 1930, y: 2492 }    // Driver name position
   },
   return: {
     challan_number: { x: 520, y: 800 },
@@ -70,11 +73,12 @@ const COORDINATES: Record<'issue' | 'return', TemplateCoordinates> = {
     table_start: { x: 900, y: 1570 },
     row_height: 130,
     plate_size_x: 220,
-    quantity_x: 740,    // Increased spacing for quantity column
-    notes_x: 1190,      // Increased spacing for notes column
+    quantity_x: 740,    // Spacing for quantity column
+    borrowed_x: 965,    // Added borrowed column
+    notes_x: 1300,      // Notes column
     total: { x: 700, y: 2750 },
-    second_total: { x: 1420, y: 3180 }, // Added second total 100px below
-    driver_name: { x: 1930, y: 2492 }    // Driver name next to total, adjusted position
+    second_total: { x: 1420, y: 3180 }, // Second total
+    driver_name: { x: 1930, y: 2492 }    // Driver name position
   }
 };
 
@@ -212,9 +216,21 @@ function renderPlatesTable(
         plateData.quantity.toString(),
         coords.quantity_x,
         currentY,
-        56,  // Further increased font size
+        56,  // Font size
         'bold'
       );
+
+      // Borrowed stock - render in borrowed column if present
+      if (plateData.borrowed_stock && plateData.borrowed_stock > 0) {
+        renderHighContrastText(
+          ctx,
+          plateData.borrowed_stock.toString(),
+          coords.borrowed_x,
+          currentY,
+          56,  // Font size
+          'bold'
+        );
+      }
       
       // Notes - render in notes column if present
       if (plateData.notes && plateData.notes.trim()) {
