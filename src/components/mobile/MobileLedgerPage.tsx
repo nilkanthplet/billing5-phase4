@@ -18,11 +18,13 @@ import { PrintableChallan } from '../challans/PrintableChallan';
 import { generateJPGChallan, downloadJPGChallan } from '../../utils/jpgChallanGenerator';
 import { ChallanData } from '../challans/types';
 
+
 type Client = Database['public']['Tables']['clients']['Row'];
 type Challan = Database['public']['Tables']['challans']['Row'];
 type ChallanItem = Database['public']['Tables']['challan_items']['Row'];
 type Return = Database['public']['Tables']['returns']['Row'];
 type ReturnLineItem = Database['public']['Tables']['return_line_items']['Row'];
+
 
 interface PlateBalance {
   plate_size: string;
@@ -30,6 +32,7 @@ interface PlateBalance {
   total_returned: number;
   outstanding: number;
 }
+
 
 interface ClientLedger {
   client: Client;
@@ -52,10 +55,12 @@ interface ClientLedger {
   }>;
 }
 
+
 const PLATE_SIZES = [
   '2 X 3', '21 X 3', '18 X 3', '15 X 3', '12 X 3',
   '9 X 3', 'પતરા', '2 X 2', '2 ફુટ'
 ];
+
 
 export function MobileLedgerPage() {
   const [clientLedgers, setClientLedgers] = useState<ClientLedger[]>([]);
@@ -64,6 +69,16 @@ export function MobileLedgerPage() {
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
+
+  // NEW: Helper function to calculate total borrowed plates for a specific ledger
+  const getTotalBorrowedPlatesForLedger = (ledger: ClientLedger) => {
+    return ledger.all_transactions
+      .filter(t => t.type === 'udhar')
+      .reduce((sum, t) => {
+        return sum + t.items.reduce((subSum, item) => subSum + (item.borrowed_stock || 0), 0);
+      }, 0);
+  };
+
 
   useEffect(() => {
     fetchClientLedgers();
@@ -75,6 +90,7 @@ export function MobileLedgerPage() {
       })
       .subscribe();
 
+
     const returnsSubscription = supabase
       .channel('returns_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'returns' }, () => {
@@ -82,11 +98,13 @@ export function MobileLedgerPage() {
       })
       .subscribe();
 
+
     return () => {
       challanSubscription.unsubscribe();
       returnsSubscription.unsubscribe();
     };
   }, []);
+
 
   const fetchClientLedgers = async () => {
     try {
@@ -95,25 +113,32 @@ export function MobileLedgerPage() {
         .select('*')
         .order('id');
 
+
       if (clientsError) throw clientsError;
+
 
       const { data: challans, error: challansError } = await supabase
         .from('challans')
         .select(`*, challan_items (*)`)
         .order('created_at', { ascending: false });
 
+
       if (challansError) throw challansError;
+
 
       const { data: returns, error: returnsError } = await supabase
         .from('returns')
         .select(`*, return_line_items (*)`)
         .order('created_at', { ascending: false });
 
+
       if (returnsError) throw returnsError;
+
 
       const ledgers: ClientLedger[] = clients.map(client => {
         const clientChallans = challans.filter(c => c.client_id === client.id);
         const clientReturns = returns.filter(r => r.client_id === client.id);
+
 
         const plateBalanceMap = new Map<string, PlateBalance>();
         
@@ -127,6 +152,7 @@ export function MobileLedgerPage() {
           });
         });
 
+
         clientChallans.forEach(challan => {
           challan.challan_items.forEach(item => {
             const existing = plateBalanceMap.get(item.plate_size);
@@ -135,6 +161,7 @@ export function MobileLedgerPage() {
             }
           });
         });
+
 
         clientReturns.forEach(returnRecord => {
           returnRecord.return_line_items.forEach(item => {
@@ -145,6 +172,7 @@ export function MobileLedgerPage() {
           });
         });
 
+
         // Always return ALL plate sizes in correct order
         const plate_balances = PLATE_SIZES.map(size => {
           const balance = plateBalanceMap.get(size)!;
@@ -154,7 +182,9 @@ export function MobileLedgerPage() {
           };
         });
 
+
         const total_outstanding = plate_balances.reduce((sum, balance) => sum + balance.outstanding, 0);
+
 
         const allTransactions = [
           ...clientChallans.map(challan => ({
@@ -187,7 +217,9 @@ export function MobileLedgerPage() {
           }))
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+
         const has_activity = clientChallans.length > 0 || clientReturns.length > 0;
+
 
         return {
           client,
@@ -198,6 +230,7 @@ export function MobileLedgerPage() {
         };
       });
 
+
       setClientLedgers(ledgers);
     } catch (error) {
       console.error('Error fetching client ledgers:', error);
@@ -206,9 +239,11 @@ export function MobileLedgerPage() {
     }
   };
 
+
   const toggleExpanded = (clientId: string) => {
     setExpandedClient(expandedClient === clientId ? null : clientId);
   };
+
 
   const handleDownloadChallan = async (transaction: any, type: 'udhar' | 'jama') => {
     try {
@@ -217,6 +252,7 @@ export function MobileLedgerPage() {
       
       const client = clientLedgers.find(ledger => ledger.client.id === transaction.client_id)?.client;
       if (!client) throw new Error('Client not found');
+
 
       const challanDataForPDF: ChallanData = {
         type: type === 'udhar' ? 'issue' : 'return',
@@ -237,11 +273,14 @@ export function MobileLedgerPage() {
         total_quantity: transaction.items.reduce((sum, item) => sum + item.quantity, 0)
       };
 
+
       setChallanData(challanDataForPDF);
       await new Promise(resolve => setTimeout(resolve, 500));
 
+
       const jpgDataUrl = await generateJPGChallan(challanDataForPDF);
       downloadJPGChallan(jpgDataUrl, `${type}-challan-${challanDataForPDF.challan_number}`);
+
 
       setChallanData(null);
     } catch (error) {
@@ -252,6 +291,7 @@ export function MobileLedgerPage() {
     }
   };
 
+
   const handleBackupData = async () => {
     try {
       const csvRows = [];
@@ -261,6 +301,7 @@ export function MobileLedgerPage() {
         'Total Transactions', 'Last Activity Date'
       ];
       csvRows.push(headers.join(','));
+
 
       clientLedgers.forEach(ledger => {
         if (!ledger.has_activity) {
@@ -285,6 +326,7 @@ export function MobileLedgerPage() {
         }
       });
 
+
       const csvContent = csvRows.join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
@@ -303,11 +345,13 @@ export function MobileLedgerPage() {
     }
   };
 
+
   const filteredLedgers = clientLedgers.filter(ledger =>
     ledger.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     ledger.client.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     ledger.client.site.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
 
   if (loading) {
     return (
@@ -328,6 +372,7 @@ export function MobileLedgerPage() {
     );
   }
 
+
   return (
     <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
       {/* Hidden Printable Challan */}
@@ -339,6 +384,7 @@ export function MobileLedgerPage() {
         )}
       </div>
 
+
       <div className="p-3 space-y-4">
         {/* Blue Themed Header */}
         <div className="pt-2 text-center">
@@ -348,6 +394,7 @@ export function MobileLedgerPage() {
           <h1 className="mb-1 text-base font-bold text-gray-900">ખાતાવહી</h1>
           <p className="text-xs text-blue-600">ગ્રાહક ભાડા ઇતિહાસ</p>
         </div>
+
 
         {/* Blue Themed Backup Button */}
         <div className="flex justify-center">
@@ -359,6 +406,7 @@ export function MobileLedgerPage() {
             બેકઅપ
           </button>
         </div>
+
 
         {/* Blue Themed Search Bar */}
         <div className="relative">
@@ -372,80 +420,89 @@ export function MobileLedgerPage() {
           />
         </div>
 
+
         {/* Blue Themed Client Cards */}
         <div className="space-y-2">
-          {filteredLedgers.map((ledger) => (
-            <div key={ledger.client.id} className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200">
-              {/* Blue Themed Client Header */}
-              <div 
-                className="p-3 transition-colors cursor-pointer hover:bg-blue-50"
-                onClick={() => toggleExpanded(ledger.client.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full shadow-sm bg-gradient-to-r from-blue-500 to-indigo-500">
-                        {ledger.client.name.charAt(0).toUpperCase()}
+          {filteredLedgers.map((ledger) => {
+            // MODIFIED: Calculate total outstanding including borrowed plates
+            const totalBorrowedPlates = getTotalBorrowedPlatesForLedger(ledger);
+            const totalOutstandingWithBorrowed = ledger.total_outstanding + totalBorrowedPlates;
+            
+            return (
+              <div key={ledger.client.id} className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200">
+                {/* Blue Themed Client Header - MODIFIED to include borrowed plates */}
+                <div 
+                  className="p-3 transition-colors cursor-pointer hover:bg-blue-50"
+                  onClick={() => toggleExpanded(ledger.client.id)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full shadow-sm bg-gradient-to-r from-blue-500 to-indigo-500">
+                          {ledger.client.name.charAt(0).toUpperCase()}
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                          {ledger.client.name} ({ledger.client.id})
+                        </h3>
                       </div>
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">
-                        {ledger.client.name} ({ledger.client.id})
-                      </h3>
+                      <div className="flex items-center gap-3 ml-8">
+                        <div className="flex items-center gap-1 text-xs text-blue-600">
+                          <MapPin className="w-3 h-3" />
+                          <span className="truncate">{ledger.client.site}</span>
+                        </div>
+                        <div className="flex items-center gap-1 text-xs text-blue-600">
+                          <Phone className="w-3 h-3" />
+                          <span>{ledger.client.mobile_number}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 ml-8">
-                      <div className="flex items-center gap-1 text-xs text-blue-600">
-                        <MapPin className="w-3 h-3" />
-                        <span className="truncate">{ledger.client.site}</span>
+                    
+                    <div className="flex items-center gap-2 ml-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${
+                        totalOutstandingWithBorrowed > 0 
+                          ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
+                          : 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                      }`}>
+                        {totalOutstandingWithBorrowed > 0 
+                          ? `${totalOutstandingWithBorrowed} બાકી` 
+                          : 'પૂર્ણ'
+                        }
+                      </span>
+                      <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
+                        {expandedClient === ledger.client.id ? (
+                          <ChevronUp className="w-4 h-4 text-blue-600" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-blue-600" />
+                        )}
                       </div>
-                      <div className="flex items-center gap-1 text-xs text-blue-600">
-                        <Phone className="w-3 h-3" />
-                        <span>{ledger.client.mobile_number}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-2 ml-2">
-                    <span className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${
-                      ledger.total_outstanding > 0 
-                        ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
-                        : 'bg-gradient-to-r from-green-500 to-green-600 text-white'
-                    }`}>
-                      {ledger.total_outstanding > 0 
-                        ? `${ledger.total_outstanding} બાકી` 
-                        : 'પૂર્ણ'
-                      }
-                    </span>
-                    <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
-                      {expandedClient === ledger.client.id ? (
-                        <ChevronUp className="w-4 h-4 text-blue-600" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4 text-blue-600" />
-                      )}
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Blue Themed Expanded Details */}
-              {expandedClient === ledger.client.id && (
-                <div className="border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-                  {!ledger.has_activity ? (
-                    <div className="p-6 text-center text-gray-500">
-                      <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
-                        <Package className="w-6 h-6 text-blue-400" />
+
+                {/* Blue Themed Expanded Details */}
+                {expandedClient === ledger.client.id && (
+                  <div className="border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                    {!ledger.has_activity ? (
+                      <div className="p-6 text-center text-gray-500">
+                        <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
+                          <Package className="w-6 h-6 text-blue-400" />
+                        </div>
+                        <p className="text-sm font-medium">કોઈ પ્રવૃત્તિ નથી</p>
                       </div>
-                      <p className="text-sm font-medium">કોઈ પ્રવૃત્તિ નથી</p>
-                    </div>
-                  ) : (
-                    <AllSizesActivityTable 
-                      ledger={ledger} 
-                      onDownloadChallan={handleDownloadChallan}
-                      downloading={downloading}
-                    />
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
+                    ) : (
+                      <AllSizesActivityTable 
+                        ledger={ledger} 
+                        onDownloadChallan={handleDownloadChallan}
+                        downloading={downloading}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
 
           {filteredLedgers.length === 0 && !loading && (
             <div className="py-8 text-center bg-white border-2 border-blue-100 shadow-lg rounded-xl">
@@ -466,6 +523,7 @@ export function MobileLedgerPage() {
   );
 }
 
+
 // Modified Activity Table - Shows ALL Plate Sizes (Even Blank Ones)
 interface AllSizesActivityTableProps {
   ledger: ClientLedger;
@@ -473,28 +531,77 @@ interface AllSizesActivityTableProps {
   downloading: string | null;
 }
 
+
 function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSizesActivityTableProps) {
   // CHANGED: Use ALL plate sizes instead of filtering to active ones
   const allPlateSizes = PLATE_SIZES; // Show all sizes regardless of activity
+
 
   const getCurrentBalance = (plateSize: string) => {
     const balance = ledger.plate_balances.find(b => b.plate_size === plateSize);
     return balance?.outstanding || 0;
   };
 
+
   const getTransactionQuantity = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const item = transaction.items.find(i => i.plate_size === plateSize);
     return item?.quantity || 0;
   };
+
 
   const getBorrowedStock = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const item = transaction.items.find(i => i.plate_size === plateSize);
     return item?.borrowed_stock || 0;
   };
 
+
   const getNotes = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const item = transaction.items.find(i => i.plate_size === plateSize);
     return item?.notes || '';
+  };
+
+  // Helper function to check if transaction has borrowed stock
+  const hasBorrowedStock = (transaction: typeof ledger.all_transactions[0]) => {
+    return transaction.type === 'udhar' && transaction.items.some(item => (item.borrowed_stock || 0) > 0);
+  };
+
+  // Helper function to calculate total including borrowed stock
+  const getTotalWithBorrowedStock = (transaction: typeof ledger.all_transactions[0]) => {
+    const regularTotal = transaction.items.reduce((sum, item) => sum + item.quantity, 0);
+    if (transaction.type === 'udhar') {
+      const borrowedStockTotal = transaction.items.reduce((sum, item) => sum + (item.borrowed_stock || 0), 0);
+      return regularTotal + borrowedStockTotal;
+    }
+    return regularTotal;
+  };
+
+  // Helper function to format plate display with borrowed stock in brackets
+  const formatPlateDisplay = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
+    const quantity = getTransactionQuantity(transaction, plateSize);
+    const borrowedStock = getBorrowedStock(transaction, plateSize);
+    
+    if (quantity === 0) {
+      return null;
+    }
+
+    const prefix = transaction.type === 'udhar' ? '+' : '-';
+    const displayQuantity = `${prefix}${quantity}`;
+    
+    // Add borrowed stock in brackets if it exists and transaction type is udhar
+    if (transaction.type === 'udhar' && borrowedStock > 0) {
+      return `${displayQuantity} (${borrowedStock})`;
+    }
+    
+    return displayQuantity;
+  };
+
+  // Helper function to calculate total borrowed plates across all transactions
+  const getTotalBorrowedPlates = () => {
+    return ledger.all_transactions
+      .filter(t => t.type === 'udhar')
+      .reduce((sum, t) => {
+        return sum + t.items.reduce((subSum, item) => subSum + (item.borrowed_stock || 0), 0);
+      }, 0);
   };
   
   return (
@@ -507,7 +614,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
         <h4 className="text-sm font-semibold text-gray-900">પ્લેટ પ્રવૃત્તિ</h4>
       </div>
       
-      {/* Enhanced Table with Borrowed Stock and Notes */}
+      {/* Enhanced Table with borrowed stock in brackets */}
       <div className="overflow-hidden bg-white border-2 border-blue-100 rounded-lg shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -522,12 +629,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                 <th className="px-1 py-1.5 text-center font-bold min-w-[60px] border-l border-blue-400">
                   <div className="text-xs">કુલ</div>
                 </th>
-                <th className="px-1 py-1.5 text-center font-bold min-w-[60px] border-l border-blue-400">
-                  <div className="text-xs">ઉધાર સ્ટોક</div>
-                </th>
-                <th className="px-1 py-1.5 text-center font-bold min-w-[80px] border-l border-blue-400">
-                  <div className="text-xs">નોંધ</div>
-                </th>
                 {allPlateSizes.map(size => (
                   <th key={size} className="px-1 py-1.5 text-center font-bold min-w-[50px] border-l border-blue-400">
                     <div className="text-xs">{size}</div>
@@ -539,7 +640,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
               </tr>
             </thead>
             <tbody>
-              {/* Current Balance Row - Shows ALL sizes */}
+              {/* Current Balance Row - Shows ALL sizes - MODIFIED to include borrowed plates in grand total */}
               <tr className="border-b-2 border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
                 <td className="sticky left-0 bg-gradient-to-r from-blue-100 to-indigo-100 px-1 py-1.5 font-bold text-blue-900 border-r border-blue-200">
                   <div className="text-xs">વર્તમાન બેલેન્સ</div>
@@ -548,13 +649,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                   <div className="text-xs font-semibold text-blue-700">-</div>
                 </td>
                 <td className="px-1 py-1.5 text-center border-l border-blue-200">
-                  <div className="text-xs font-semibold text-blue-700">{ledger.plate_balances.reduce((sum, balance) => sum + Math.abs(balance.outstanding), 0)}</div>
-                </td>
-                <td className="px-1 py-1.5 text-center border-l border-blue-200">
-                  <div className="text-xs font-semibold text-blue-700">-</div>
-                </td>
-                <td className="px-1 py-1.5 text-center border-l border-blue-200">
-                  <div className="text-xs font-semibold text-blue-700">-</div>
+                  <div className="text-xs font-semibold text-blue-700">{ledger.plate_balances.reduce((sum, balance) => sum + Math.abs(balance.outstanding), 0) + getTotalBorrowedPlates()}</div>
                 </td>
                 {/* CHANGED: Show ALL plate sizes, even blank ones */}
                 {allPlateSizes.map(size => {
@@ -578,10 +673,11 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                 </td>
               </tr>
 
-              {/* Transaction Rows - Shows ALL sizes */}
+
+              {/* Transaction Rows - Shows ALL sizes with borrowed stock in brackets */}
               {ledger.all_transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={allPlateSizes.length + 5} className="px-1 py-4 text-center text-blue-500">
+                  <td colSpan={allPlateSizes.length + 4} className="px-1 py-4 text-center text-blue-500">
                     <div className="text-xs">કોઈ ચલણ નથી</div>
                   </td>
                 </tr>
@@ -598,6 +694,10 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                     }`}>
                       <div className="text-xs font-semibold text-gray-900">
                         #{transaction.number}
+                        {/* Add asterisk if transaction has borrowed stock */}
+                        {hasBorrowedStock(transaction) && (
+                          <span className="font-bold text-purple-600">*</span>
+                        )}
                       </div>
                     </td>
                     
@@ -613,44 +713,23 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                       </div>
                     </td>
                     
+                    {/* Modified Total Column - includes borrowed stock in calculation */}
                     <td className="px-1 py-0.5 text-center border-l border-blue-100">
                       <div className="text-xs font-medium text-blue-600">
-                        {transaction.items.reduce((sum, item) => sum + item.quantity, 0)}
+                        {getTotalWithBorrowedStock(transaction)}
                       </div>
                     </td>
 
-                    {/* Borrowed Stock Column */}
-                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
-                      <div className="text-xs font-medium text-purple-600">
-                        {transaction.type === 'udhar' 
-                          ? transaction.items.reduce((sum, item) => sum + (item.borrowed_stock || 0), 0)
-                          : '-'
-                        }
-                      </div>
-                    </td>
-
-                    {/* Notes Column */}
-                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
-                      <div className="text-xs text-gray-600 max-w-[80px] truncate">
-                        {(() => {
-                          const notesArray = transaction.items
-                            .map(item => item.notes)
-                            .filter(note => note && note.trim())
-                            .slice(0, 1); // Show only first note to save space
-                          return notesArray.length > 0 ? notesArray[0] : '-';
-                        })()}
-                      </div>
-                    </td>
-                    {/* CHANGED: Show ALL plate sizes, leave blank if no quantity */}
+                    {/* CHANGED: Show ALL plate sizes with borrowed stock in brackets */}
                     {allPlateSizes.map(size => {
-                      const quantity = getTransactionQuantity(transaction, size);
+                      const formattedDisplay = formatPlateDisplay(transaction, size);
                       return (
                         <td key={size} className="px-1 py-0.5 text-center border-l border-blue-100">
-                          {quantity > 0 ? (
+                          {formattedDisplay ? (
                             <span className={`font-bold text-sm ${
                               transaction.type === 'udhar' ? 'text-yellow-700' : 'text-green-700'
                             }`}>
-                              {transaction.type === 'udhar' ? '+' : '-'}{quantity}
+                              {formattedDisplay}
                             </span>
                           ) : (
                             <span className="text-xs text-gray-300">-</span>
@@ -679,7 +758,8 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
           </table>
         </div>
 
-        {/* Blue Themed Legend */}
+
+        {/* Blue Themed Legend - Updated to explain brackets */}
         <div className="p-3 border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex flex-wrap justify-center gap-4 text-xs">
             <div className="flex items-center gap-1">
@@ -695,8 +775,12 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
               <span className="font-medium text-blue-700">વર્તમાન બેલેન્સ (Balance)</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-purple-400 rounded-full shadow-sm"></div>
-              <span className="font-medium text-blue-700">ઉધાર સ્ટોક (Borrowed Stock)</span>
+              <span className="font-bold text-purple-600">*</span>
+              <span className="font-medium text-blue-700">ઉધાર સ્ટોક સાથે (With Borrowed Stock)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <span className="font-bold text-purple-600">()</span>
+              <span className="font-medium text-blue-700">ઉધાર પ્લેટ (Borrowed Plates)</span>
             </div>
           </div>
         </div>
