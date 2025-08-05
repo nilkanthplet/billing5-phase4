@@ -925,26 +925,6 @@ export function MobileReturnRental() {
                               </td>
                             </>
                           )}
-                          {/* <td className="px-1 py-1 text-center">
-                            <input
-                              type="number"
-                              min={0}
-                              value={damagedQuantities[size] || ""}
-                              onChange={e => handleDamagedQuantityChange(size, e.target.value)}
-                              className="w-10 px-0.5 py-0.5 border border-red-300 rounded text-center bg-red-50"
-                              placeholder="0"
-                            />
-                          </td>
-                          <td className="px-1 py-1 text-center">
-                            <input
-                              type="number"
-                              min={0}
-                              value={lostQuantities[size] || ""}
-                              onChange={e => handleLostQuantityChange(size, e.target.value)}
-                              className="w-10 px-0.5 py-0.5 border border-gray-400 rounded text-center bg-gray-100"
-                              placeholder="0"
-                            />
-                          </td> */}
                           <td className="px-1 py-1 text-center">
                             <input
                               type="text"
