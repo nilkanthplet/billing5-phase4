@@ -48,7 +48,7 @@ export function MobileReturnRental() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [damagedQuantities, setDamagedQuantities] = useState<Record<string, number>>({});
   const [lostQuantities, setLostQuantities] = useState<Record<string, number>>({});
-  const [borrowedStockReturns, setBorrowedStockReturns] = useState<Record<string, number>>({});
+  const [borrowedStockReturns, setBorrowedStockReturns] = useState<Record<string, number>>({})
   const [loading, setLoading] = useState(false);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [showClientSelector, setShowClientSelector] = useState(false);
@@ -794,8 +794,8 @@ export function MobileReturnRental() {
                       <th className="px-1 py-1 font-medium text-center">પરત</th>
                       <th className="px-1 py-1 font-medium text-center">ઉધાર બાકી</th>
                       <th className="px-1 py-1 font-medium text-center">ઉધાર પરત</th>
-                      <th className="px-1 py-1 font-medium text-center">ખરાબ</th>
-                      <th className="px-1 py-1 font-medium text-center">ગુમ</th>
+                      {/* <th className="px-1 py-1 font-medium text-center">ખરાબ</th> */}
+                      {/* <th className="px-1 py-1 font-medium text-center">ગુમ</th> */}
                       <th className="px-1 py-1 font-medium text-center">નોંધ</th>
                     </tr>
                   </thead>
@@ -804,10 +804,8 @@ export function MobileReturnRental() {
                       const outstandingCount = outstandingPlates[size] || 0;
                       const outstandingBorrowedCount = outstandingBorrowedStock[size] || 0;
                       const returnQuantity = quantities[size] || 0;
-                      const damagedQuantity = damagedQuantities[size] || 0;
-                      const lostQuantity = lostQuantities[size] || 0;
                       const borrowedStockReturn = borrowedStockReturns[size] || 0;
-                      const totalProcessed = returnQuantity + damagedQuantity + lostQuantity;
+                      const totalProcessed = returnQuantity;
                       const isExcess = totalProcessed > outstandingCount;
                       const isBorrowedExcess = borrowedStockReturn > outstandingBorrowedCount;
                       
@@ -861,8 +859,9 @@ export function MobileReturnRental() {
                               }`}
                               placeholder="0"
                             />
+                          
                           </td>
-                          <td className="px-1 py-1 text-center">
+                          {/* <td className="px-1 py-1 text-center">
                             <input
                               type="number"
                               min={0}
@@ -881,7 +880,7 @@ export function MobileReturnRental() {
                               className="w-10 px-0.5 py-0.5 border border-gray-400 rounded text-center bg-gray-100"
                               placeholder="0"
                             />
-                          </td>
+                          </td> */}
                           <td className="px-1 py-1 text-center">
                             <input
                               type="text"
@@ -900,7 +899,7 @@ export function MobileReturnRental() {
 
               {/* Enhanced Total with borrowed stock breakdown */}
               <div className="p-2 bg-green-100 border border-green-200 rounded">
-                <div className="text-center space-y-1">
+                <div className="space-y-1 text-center">
                   <div className="grid grid-cols-4 gap-2 text-xs">
                     <div>
                       <span className="font-medium text-green-800">પરત: </span>
@@ -914,7 +913,7 @@ export function MobileReturnRental() {
                         {Object.values(borrowedStockReturns).reduce((sum, qty) => sum + (qty || 0), 0)}
                       </span>
                     </div>
-                    <div>
+                    {/* <div>
                       <span className="font-medium text-red-800">ખરાબ: </span>
                       <span className="text-sm font-bold text-red-700">
                         {Object.values(damagedQuantities).reduce((sum, qty) => sum + (qty || 0), 0)}
@@ -925,7 +924,7 @@ export function MobileReturnRental() {
                       <span className="text-sm font-bold text-gray-700">
                         {Object.values(lostQuantities).reduce((sum, qty) => sum + (qty || 0), 0)}
                       </span>
-                    </div>
+                    </div> */}
                   </div>
                   <div className="pt-1 border-t border-green-300">
                     <span className="font-medium text-green-800">કુલ પ્રક્રિયા: </span>

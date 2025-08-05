@@ -5,7 +5,7 @@ import {
   Search, 
   User, 
   Package, 
-  ChevronDown, 
+  ChevronDown,
   ChevronUp,
   Download,
   FileDown,
@@ -48,10 +48,11 @@ interface ClientLedger {
     items: Array<{
       plate_size: string;
       quantity: number;
-     borrowed_stock?: number;
-     notes?: string;
+      borrowed_stock?: number;
+      returned_borrowed_stock?: number;
+      notes?: string;
     }>;
-   driver_name?: string;
+    driver_name?: string;
   }>;
 }
 
@@ -210,7 +211,7 @@ export function MobileLedgerPage() {
             items: returnRecord.return_line_items.map(item => ({
               plate_size: item.plate_size,
               quantity: item.returned_quantity,
-             borrowed_stock: 0, // Returns don't have borrowed stock
+              returned_borrowed_stock: item.returned_borrowed_stock || 0,
               notes: item.damage_notes || ''
             })),
             driver_name: returnRecord.driver_name
@@ -565,20 +566,23 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     return transaction.type === 'udhar' && transaction.items.some(item => (item.borrowed_stock || 0) > 0);
   };
 
-  // Helper function to calculate total including borrowed stock
+  // Helper function to calculate total including borrowed stock for both udhar and jama
   const getTotalWithBorrowedStock = (transaction: typeof ledger.all_transactions[0]) => {
     const regularTotal = transaction.items.reduce((sum, item) => sum + item.quantity, 0);
     if (transaction.type === 'udhar') {
       const borrowedStockTotal = transaction.items.reduce((sum, item) => sum + (item.borrowed_stock || 0), 0);
       return regularTotal + borrowedStockTotal;
     }
+    if (transaction.type === 'jama') {
+      const returnedBorrowedStockTotal = transaction.items.reduce((sum, item) => sum + (item.returned_borrowed_stock || 0), 0);
+      return regularTotal + returnedBorrowedStockTotal;
+    }
     return regularTotal;
   };
 
-  // Helper function to format plate display with borrowed stock in brackets
+  // Helper function to format plate display with borrowed stock and notes in brackets
   const formatPlateDisplay = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const quantity = getTransactionQuantity(transaction, plateSize);
-    const borrowedStock = getBorrowedStock(transaction, plateSize);
     
     if (quantity === 0) {
       return null;
@@ -587,12 +591,33 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     const prefix = transaction.type === 'udhar' ? '+' : '-';
     const displayQuantity = `${prefix}${quantity}`;
     
-    // Add borrowed stock in brackets if it exists and transaction type is udhar
-    if (transaction.type === 'udhar' && borrowedStock > 0) {
-      return `${displayQuantity} (${borrowedStock})`;
+    const item = transaction.items.find(i => i.plate_size === plateSize);
+    if (!item) return displayQuantity;
+    
+    const notes = [];
+    
+    // For udhar, show borrowed_stock and partner notes
+    if (transaction.type === 'udhar') {
+      if (item.borrowed_stock && item.borrowed_stock > 0) {
+        notes.push(`${item.borrowed_stock}`);
+      }
+      if (item.notes) {
+        notes.push(item.notes);
+      }
     }
     
-    return displayQuantity;
+    // For jama, show returned_borrowed_stock and damage notes
+    if (transaction.type === 'jama') {
+      if (item.returned_borrowed_stock && item.returned_borrowed_stock > 0) {
+        notes.push(`${item.returned_borrowed_stock}`);
+      }
+      if (item.notes) {
+        notes.push(item.notes);
+      }
+    }
+    
+    // Return with notes in brackets if there are any
+    return notes.length > 0 ? `${displayQuantity} (${notes.join(', ')})` : displayQuantity;
   };
 
   // Helper function to calculate total borrowed plates across all transactions
@@ -780,7 +805,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
             </div>
             <div className="flex items-center gap-1">
               <span className="font-bold text-purple-600">()</span>
-              <span className="font-medium text-blue-700">ઉધાર પ્લેટ (Borrowed Plates)</span>
+              <span className="font-medium text-blue-700">ઉધાર અને નોંધ (Borrowed & Notes)</span>
             </div>
           </div>
         </div>

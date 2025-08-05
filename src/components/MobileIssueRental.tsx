@@ -51,6 +51,7 @@ export function MobileIssueRental() {
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [showClientSelector, setShowClientSelector] = useState(false);
   const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
+  const [showBorrowedColumn, setShowBorrowedColumn] = useState(false);
 
   useEffect(() => { 
     fetchStockData(); 
@@ -604,53 +605,70 @@ export function MobileIssueRental() {
 
             <div className="p-2 space-y-2">
               {/* Compact Form Header */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                  ચલણ નંબર *
-                </label>
-                <input
-                  type="text"
-                  value={challanNumber}
-                  onChange={(e) => handleChallanNumberChange(e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
-                  placeholder={suggestedChallanNumber}
-                  required
-                />
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                    ચલણ નંબર *
+                  </label>
+                  <input
+                    type="text"
+                    value={challanNumber}
+                    onChange={(e) => handleChallanNumberChange(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                    placeholder={suggestedChallanNumber}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                    તારીખ *
+                  </label>
+                  <input
+                    type="date"
+                    value={challanDate}
+                    onChange={(e) => setChallanDate(e.target.value)}
+                    required
+                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                  તારીખ *
-                </label>
-                <input
-                  type="date"
-                  value={challanDate}
-                  onChange={(e) => setChallanDate(e.target.value)}
-                  required
-                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
-                />
-              </div>
-            </div>
-            <div className="mt-2">
-              <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                ડ્રાઈવરનું નામ
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={driverName}
-                  onChange={e => setDriverName(e.target.value)}
-                  list="driver-suggestions"
-                  className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
-                  placeholder="ડ્રાઈવરનું નામ દાખલ કરો"
-                />
-                <datalist id="driver-suggestions">
-                  {previousDrivers.map((driver, index) => (
-                    <option key={index} value={driver} />
-                  ))}
-                </datalist>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                    <span className="flex items-center gap-1">
+                      <User className="w-3 h-3 text-gray-500" />
+                      ડ્રાઈવરનું નામ
+                    </span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={driverName}
+                      onChange={e => setDriverName(e.target.value)}
+                      list="driver-suggestions"
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                      placeholder="ડ્રાઈવરનું નામ દાખલ કરો"
+                    />
+                    <datalist id="driver-suggestions">
+                      {previousDrivers.map((driver, index) => (
+                        <option key={index} value={driver} />
+                      ))}
+                    </datalist>
+                  </div>
+                </div>
+                <div className="flex items-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowBorrowedColumn(!showBorrowedColumn)}
+                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded bg-blue-50 hover:bg-blue-100"
+                  >
+                    {showBorrowedColumn ? 'ઉધાર સ્ટોક છુપાવો' : 'ઉધાર સ્ટોક બતાવો'}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -670,7 +688,9 @@ export function MobileIssueRental() {
                       <th className="px-1 py-1 font-medium text-left">સાઇઝ</th>
                       <th className="px-1 py-1 font-medium text-center">સ્ટોક</th>
                       <th className="px-1 py-1 font-medium text-center">ઇશ્યૂ</th>
-                      <th className="px-1 py-1 font-medium text-center">ઉધાર સ્ટોક</th>
+                      {showBorrowedColumn && (
+                        <th className="px-1 py-1 font-medium text-center">ઉધાર સ્ટોક</th>
+                      )}
                       <th className="px-1 py-1 font-medium text-center">નોંધ</th>
                     </tr>
                   </thead>
@@ -705,16 +725,18 @@ export function MobileIssueRental() {
                               </div>
                             )}
                           </td>
-                          <td className="px-1 py-1 text-center">
-                            <input
-                              type="number"
-                              min={0}
-                              value={borrowedStock[size] || ""}
-                              onChange={e => handleBorrowedStockChange(size, e.target.value)}
-                              className="w-10 px-0.5 py-0.5 border border-blue-300 rounded text-center bg-blue-50"
-                              placeholder="0"
-                            />
-                          </td>
+                          {showBorrowedColumn && (
+                            <td className="px-1 py-1 text-center">
+                              <input
+                                type="number"
+                                min={0}
+                                value={borrowedStock[size] || ""}
+                                onChange={e => handleBorrowedStockChange(size, e.target.value)}
+                                className="w-10 px-0.5 py-0.5 border border-blue-300 rounded text-center bg-blue-50"
+                                placeholder="0"
+                              />
+                            </td>
+                          )}
                           <td className="px-1 py-1 text-center">
                             <input
                               type="text"
@@ -734,19 +756,21 @@ export function MobileIssueRental() {
               {/* Compact Total */}
               <div className="p-2 bg-red-100 border border-red-200 rounded">
                 <div className="text-center">
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className={`grid ${showBorrowedColumn ? 'grid-cols-2' : 'grid-cols-1'} gap-2 text-xs`}>
                     <div>
                       <span className="font-medium text-red-800">કુલ ઇશ્યૂ: </span>
                       <span className="text-sm font-bold text-red-700">
                         {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
                       </span>
                     </div>
-                    <div>
-                      <span className="font-medium text-blue-800">કુલ ઉધાર: </span>
-                      <span className="text-sm font-bold text-blue-700">
-                        {Object.values(borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0)}
-                      </span>
-                    </div>
+                    {showBorrowedColumn && (
+                      <div>
+                        <span className="font-medium text-blue-800">કુલ ઉધાર: </span>
+                        <span className="text-sm font-bold text-blue-700">
+                          {Object.values(borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
