@@ -1,11 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
-import { Package, Plus, Edit3, Save, X, AlertTriangle, CheckCircle, Search, BarChart3, Lock } from 'lucide-react';
+import { Package, Plus, Edit3, Save, X, AlertTriangle, CheckCircle, Search, BarChart3, Lock, Users } from 'lucide-react';
 import { T } from '../contexts/LanguageContext';
 import { useAuth } from '../hooks/useAuth';
 
 type Stock = Database['public']['Tables']['stock']['Row'];
+
+interface BorrowedStockData {
+  plate_size: string;
+  total_borrowed: number;
+}
 
 const PLATE_SIZES = [
   '2 X 3',
@@ -22,11 +27,12 @@ const PLATE_SIZES = [
 interface StockRowProps {
   plateSize: string;
   stockData: Stock | undefined;
+  borrowedStock: number;
   onUpdate: (plateSize: string, values: Partial<Stock>) => Promise<void>;
   isAdmin: boolean;
 }
 
-function StockRow({ plateSize, stockData, onUpdate, isAdmin }: StockRowProps) {
+function StockRow({ plateSize, stockData, borrowedStock, onUpdate, isAdmin }: StockRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState({
     total_quantity: stockData?.total_quantity || 0
@@ -110,6 +116,16 @@ function StockRow({ plateSize, stockData, onUpdate, isAdmin }: StockRowProps) {
           <td className="px-2 py-1.5 text-center font-medium text-blue-600 text-xs">
             {stockData?.on_rent_quantity || 0}
           </td>
+          <td className="px-2 py-1.5 text-center">
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              {borrowedStock}
+            </span>
+          </td>
+          <td className="px-2 py-1.5 text-center">
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              {borrowedStock}
+            </span>
+          </td>
           <td className="px-2 py-1.5">
             {isAdmin ? (
               <button
@@ -135,6 +151,7 @@ function StockRow({ plateSize, stockData, onUpdate, isAdmin }: StockRowProps) {
 export function MobileStockPage() {
   const { user } = useAuth();
   const [stockItems, setStockItems] = useState<Stock[]>([]);
+  const [borrowedStockData, setBorrowedStockData] = useState<BorrowedStockData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -142,6 +159,7 @@ export function MobileStockPage() {
 
   useEffect(() => {
     fetchStock();
+    fetchBorrowedStock();
   }, []);
 
   const fetchStock = async () => {
@@ -157,6 +175,40 @@ export function MobileStockPage() {
       console.error('Error fetching stock:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBorrowedStock = async () => {
+    try {
+      // Aggregate borrowed stock from all active challan items
+      const { data, error } = await supabase
+        .from('challan_items')
+        .select(`
+          plate_size,
+          borrowed_stock,
+          challans!inner(status)
+        `)
+        .eq('challans.status', 'active');
+
+      if (error) throw error;
+
+      // Aggregate by plate size
+      const aggregated = (data || []).reduce((acc, item) => {
+        const existing = acc.find(a => a.plate_size === item.plate_size);
+        if (existing) {
+          existing.total_borrowed += item.borrowed_stock || 0;
+        } else {
+          acc.push({
+            plate_size: item.plate_size,
+            total_borrowed: item.borrowed_stock || 0
+          });
+        }
+        return acc;
+      }, [] as BorrowedStockData[]);
+
+      setBorrowedStockData(aggregated);
+    } catch (error) {
+      console.error('Error fetching borrowed stock:', error);
     }
   };
 
@@ -179,6 +231,7 @@ export function MobileStockPage() {
       if (error) throw error;
 
       await fetchStock();
+      await fetchBorrowedStock();
     } catch (error) {
       console.error('Error updating stock:', error);
       alert('સ્ટોક અપડેટ કરવામાં ભૂલ. કૃપા કરીને ફરી પ્રયત્ન કરો.');
@@ -203,6 +256,7 @@ export function MobileStockPage() {
       setNewPlateSize('');
       setShowAddForm(false);
       await fetchStock();
+      await fetchBorrowedStock();
       alert('નવો પ્લેટ સાઇઝ ઉમેરવામાં આવ્યો!');
     } catch (error) {
       console.error('Error adding plate size:', error);
@@ -215,6 +269,11 @@ export function MobileStockPage() {
     return acc;
   }, {} as Record<string, Stock>);
 
+  const borrowedStockMap = borrowedStockData.reduce((acc, item) => {
+    acc[item.plate_size] = item.total_borrowed;
+    return acc;
+  }, {} as Record<string, number>);
+
   const filteredPlateSizes = PLATE_SIZES.filter(size =>
     size.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -225,10 +284,14 @@ export function MobileStockPage() {
       .map(size => stockMap[size])
       .filter(Boolean);
 
+    const totalBorrowedStock = filteredPlateSizes
+      .reduce((sum, size) => sum + (borrowedStockMap[size] || 0), 0);
+
     return {
       totalStock: filteredStockItems.reduce((sum, item) => sum + (item?.total_quantity || 0), 0),
       totalAvailable: filteredStockItems.reduce((sum, item) => sum + (item?.available_quantity || 0), 0),
-      totalOnRent: filteredStockItems.reduce((sum, item) => sum + (item?.on_rent_quantity || 0), 0)
+      totalOnRent: filteredStockItems.reduce((sum, item) => sum + (item?.on_rent_quantity || 0), 0),
+      totalBorrowedStock
     };
   };
 
@@ -292,6 +355,9 @@ export function MobileStockPage() {
                     ભાડે આપેલ
                   </th>
                   <th className="px-2 py-2 font-bold text-center text-blue-900">
+                    ઉધાર સ્ટોક
+                  </th>
+                  <th className="px-2 py-2 font-bold text-center text-blue-900">
                     ક્રિયા
                   </th>
                 </tr>
@@ -302,6 +368,7 @@ export function MobileStockPage() {
                     key={plateSize}
                     plateSize={plateSize}
                     stockData={stockMap[plateSize]}
+                    borrowedStock={borrowedStockMap[plateSize] || 0}
                     onUpdate={handleUpdateStock}
                     isAdmin={user?.isAdmin || false}
                   />
@@ -325,6 +392,11 @@ export function MobileStockPage() {
                   </td>
                   <td className="px-2 py-2 text-sm font-bold text-center text-blue-800 border-r border-green-200 bg-blue-50">
                     {totals.totalOnRent}
+                  </td>
+                  <td className="px-2 py-2 text-center border-r border-green-200">
+                    <span className="px-2 py-1 text-sm font-bold text-blue-800 bg-blue-200 rounded-full">
+                      {totals.totalBorrowedStock}
+                    </span>
                   </td>
                   <td className="px-2 py-2 text-xs font-medium text-center text-green-700">
                     -
