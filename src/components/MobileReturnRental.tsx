@@ -979,18 +979,6 @@ export function MobileReturnRental() {
                         </span>
                       </div>
                     )}
-                    {/* <div>
-                      <span className="font-medium text-red-800">ખરાબ: </span>
-                      <span className="text-sm font-bold text-red-700">
-                        {Object.values(damagedQuantities).reduce((sum, qty) => sum + (qty || 0), 0)}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-800">ગુમ: </span>
-                      <span className="text-sm font-bold text-gray-700">
-                        {Object.values(lostQuantities).reduce((sum, qty) => sum + (qty || 0), 0)}
-                      </span>
-                    </div> */}
                   </div>
                   <div className="pt-1 border-t border-green-300">
                     <span className="font-medium text-green-800">કુલ પ્રક્રિયા: </span>
