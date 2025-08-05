@@ -56,80 +56,104 @@ function StockRow({ plateSize, stockData, borrowedStock, onUpdate, isAdmin }: St
   };
 
   const getAvailabilityColor = (available: number) => {
-    if (available > 20) return 'bg-green-100 text-green-800';
-    if (available > 5) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
+    if (available > 20) return 'bg-green-100 text-green-700 border-green-200';
+    if (available > 5) return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+    return 'bg-red-100 text-red-700 border-red-200';
   };
+
+  const totalOnRent = (stockData?.on_rent_quantity || 0) + borrowedStock;
 
   return (
     <tr className="transition-colors border-b border-blue-100 hover:bg-blue-25">
-      <td className="px-2 py-1.5 font-medium text-gray-900 text-xs">{plateSize}</td>
+      {/* Plate Size */}
+      <td className="px-1.5 py-2 text-[12px] font-semibold text-gray-800 border-r border-blue-100">
+        <div className="min-w-[45px]">{plateSize}</div>
+      </td>
       
-      {isEditing ? (
-        <>
-          <td className="px-2 py-1.5">
-            <input
-              type="number"
-              min="0"
-              value={editValues.total_quantity}
-              onChange={(e) => setEditValues(prev => ({
-                ...prev, 
-                total_quantity: parseInt(e.target.value) || 0
-              }))}
-              className="w-16 px-1 py-1 text-xs text-center border border-blue-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </td>
-          <td className="px-2 py-1.5 text-center text-gray-500">
-            <span className="text-xs">{stockData?.available_quantity || 0}</span>
-            <div className="text-xs text-blue-400">ઓટો</div>
-          </td>
-          <td className="px-2 py-1.5 text-center text-blue-600 font-medium text-xs">
-            {stockData?.on_rent_quantity || 0}
-          </td>
-          <td className="px-2 py-1.5">
-            <div className="flex space-x-1">
-              <button
-                onClick={handleSave}
-                className="px-2 py-1 text-xs text-white transition-colors bg-green-500 rounded hover:bg-green-600"
-              >
-                <Save className="w-3 h-3" />
-              </button>
-              <button
-                onClick={handleCancel}
-                className="px-2 py-1 text-xs text-white transition-colors bg-gray-500 rounded hover:bg-gray-600"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          </td>
-        </>
-      ) : (
-        <>
-          <td className="px-2 py-1.5 text-center font-medium text-purple-600 text-xs">
+      {/* Total Stock */}
+      <td className="px-1.5 py-2 text-center border-r border-blue-100">
+        {isEditing ? (
+          <input
+            type="number"
+            min="0"
+            value={editValues.total_quantity}
+            onChange={(e) => setEditValues(prev => ({
+              ...prev, 
+              total_quantity: parseInt(e.target.value) || 0
+            }))}
+            className="w-12 px-1 py-1 text-[12px] text-center border border-blue-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+          />
+        ) : (
+          <span className="text-[12px] font-bold text-purple-600">
             {stockData?.total_quantity || 0}
-          </td>
-          <td className="px-2 py-1.5">
-            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getAvailabilityColor(stockData?.available_quantity || 0)}`}>
-              {stockData?.available_quantity || 0}
-            </span>
-          </td>
-          <td className="px-2 py-1.5 text-center">
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-xs font-medium text-blue-600">
-                {(stockData?.on_rent_quantity || 0) + borrowedStock}
-              </span>
-              <div className="text-[10px] text-gray-500">
-                ({stockData?.on_rent_quantity || 0} + {borrowedStock})
-              </div>
-            </div>
-          </td>
-          <td className="px-2 py-1.5 text-center">
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-              {borrowedStock}
-            </span>
-          </td>
-        </>
-      )}
+          </span>
+        )}
+      </td>
+
+      {/* Available */}
+      <td className="px-1.5 py-2 text-center border-r border-blue-100">
+        {isEditing ? (
+          <div className="text-[12px] text-gray-500">
+            <div>{stockData?.available_quantity || 0}</div>
+            <div className="text-blue-400">ઓટો</div>
+          </div>
+        ) : (
+          <span className={`px-1.5 py-0.5 rounded-full text-[12px] font-medium border ${getAvailabilityColor(stockData?.available_quantity || 0)}`}>
+            {stockData?.available_quantity || 0}
+          </span>
+        )}
+      </td>
+
+      {/* Total On Rent */}
+      <td className="px-1.5 py-2 text-center border-r border-blue-100">
+        <div className="flex flex-col items-center">
+          <span className="text-[12px] font-bold text-blue-600">
+            {totalOnRent}
+          </span>
+          <div className="text-[11px] text-gray-500 leading-none">
+            ({stockData?.on_rent_quantity || 0}+{borrowedStock})
+          </div>
+        </div>
+      </td>
+
+      {/* Borrowed */}
+      <td className="px-1.5 py-2 text-center border-r border-blue-100">
+        <span className="px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-orange-100 text-orange-700 border border-orange-200">
+          {borrowedStock}
+        </span>
+      </td>
+
+      {/* Actions */}
+      <td className="px-1.5 py-2 text-center">
+        {isEditing ? (
+          <div className="flex justify-center gap-1">
+            <button
+              onClick={handleSave}
+              className="p-1 text-white transition-colors bg-green-500 rounded hover:bg-green-600"
+              title="સેવ"
+            >
+              <Save className="w-3 h-3" />
+            </button>
+            <button
+              onClick={handleCancel}
+              className="p-1 text-white transition-colors bg-gray-500 rounded hover:bg-gray-600"
+              title="કેન્સલ"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ) : (
+          isAdmin && (
+            <button
+              onClick={() => setIsEditing(true)}
+              className="p-1 text-blue-600 transition-colors rounded hover:bg-blue-100"
+              title="એડિટ"
+            >
+              <Edit3 className="w-3 h-3" />
+            </button>
+          )
+        )}
+      </td>
     </tr>
   );
 }
@@ -166,7 +190,6 @@ export function MobileStockPage() {
 
   const fetchBorrowedStock = async () => {
     try {
-      // Aggregate borrowed stock from all active challan items
       const { data, error } = await supabase
         .from('challan_items')
         .select(`
@@ -178,7 +201,6 @@ export function MobileStockPage() {
 
       if (error) throw error;
 
-      // Aggregate by plate size
       const aggregated = (data || []).reduce((acc, item) => {
         const existing = acc.find(a => a.plate_size === item.plate_size);
         if (existing) {
@@ -224,32 +246,6 @@ export function MobileStockPage() {
     }
   };
 
-  const handleAddPlateSize = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      const { error } = await supabase
-        .from('stock')
-        .insert([{
-          plate_size: newPlateSize,
-          total_quantity: 0,
-          available_quantity: 0,
-          on_rent_quantity: 0
-        }]);
-
-      if (error) throw error;
-
-      setNewPlateSize('');
-      setShowAddForm(false);
-      await fetchStock();
-      await fetchBorrowedStock();
-      alert('નવો પ્લેટ સાઇઝ ઉમેરવામાં આવ્યો!');
-    } catch (error) {
-      console.error('Error adding plate size:', error);
-      alert('પ્લેટ સાઇઝ ઉમેરવામાં ભૂલ. કદાચ તે પહેલેથી અસ્તિત્વમાં છે.');
-    }
-  };
-
   const stockMap = stockItems.reduce((acc, item) => {
     acc[item.plate_size] = item;
     return acc;
@@ -264,7 +260,6 @@ export function MobileStockPage() {
     size.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Calculate totals for subtotal row
   const calculateTotals = () => {
     const filteredStockItems = filteredPlateSizes
       .map(size => stockMap[size])
@@ -286,17 +281,14 @@ export function MobileStockPage() {
   if (loading) {
     return (
       <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
-        <div className="p-3 space-y-3">
+        <div className="p-2 space-y-2">
           <div className="pt-2 text-center">
-            <div className="w-32 h-5 mx-auto mb-1 bg-blue-200 rounded animate-pulse"></div>
-            <div className="w-40 h-3 mx-auto bg-blue-200 rounded animate-pulse"></div>
+            <div className="w-24 h-4 mx-auto mb-1 bg-blue-200 rounded animate-pulse"></div>
+            <div className="w-32 h-3 mx-auto bg-blue-200 rounded animate-pulse"></div>
           </div>
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="p-3 bg-white border border-blue-100 rounded-lg shadow-sm animate-pulse">
-              <div className="w-2/3 h-4 mb-2 bg-blue-200 rounded"></div>
-              <div className="w-1/2 h-3 bg-blue-200 rounded"></div>
-            </div>
-          ))}
+          <div className="p-2 bg-white border border-blue-100 rounded-lg shadow-sm animate-pulse">
+            <div className="w-full h-32 bg-blue-200 rounded"></div>
+          </div>
         </div>
       </div>
     );
@@ -304,44 +296,46 @@ export function MobileStockPage() {
 
   return (
     <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
-      <div className="p-3 space-y-4">
-        {/* Blue Themed Header */}
+      <div className="p-2 space-y-3">
+        {/* Header */}
         <div className="pt-2 text-center">
-          <div className="inline-flex items-center justify-center w-10 h-10 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
-            <Package className="w-5 h-5 text-white" />
+          <div className="inline-flex items-center justify-center w-8 h-8 mb-1 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
+            <Package className="w-4 h-4 text-white" />
           </div>
-          <h1 className="mb-1 text-base font-bold text-gray-900">સ્ટોક</h1>
-          <p className="text-xs text-blue-600">ઇન્વેન્ટરી મેનેજમેન્ટ</p>
+          <h1 className="mb-0.5 text-sm font-bold text-gray-900">સ્ટોક મેનેજમેન્ટ</h1>
+          <p className="text-[10px] text-blue-600">ઇન્વેન્ટરી ટ્રેકિંગ</p>
         </div>
 
-        {/* Blue Themed Stock Table */}
-        <div className="overflow-hidden bg-white border-2 border-blue-100 shadow-lg rounded-xl">
-          <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500">
-            <h2 className="flex items-center gap-2 text-sm font-bold text-white">
-              <Package className="w-4 h-4" />
-              સ્ટોક મેનેજમેન્ટ
+        {/* Stock Table */}
+        <div className="overflow-hidden bg-white border border-blue-200 rounded-lg shadow-lg">
+          <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500">
+            <h2 className="flex items-center gap-1 text-[11px] font-bold text-white">
+              <Package className="w-3 h-3" />
+              સ્ટોક ટેબલ
             </h2>
-            <p className="mt-1 text-xs text-blue-100">માત્રા અપડેટ કરવા માટે એડિટ કલિક કરો</p>
           </div>
           
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
+            <table className="w-full text-[10px] table-fixed">
               <thead>
-                <tr className="border-b-2 border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
-                  <th className="px-2 py-2 font-bold text-left text-blue-900">
-                    પ્લેટ સાઇઝ
+                <tr className="border-b border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
+                  <th className="w-12 px-1.5 py-1.5 text-[12px] font-bold text-left text-blue-900 border-r border-blue-200">
+                    સાઇઝ
                   </th>
-                  <th className="px-2 py-2 font-bold text-center text-blue-900">
-                    કુલ સ્ટોક
+                  <th className="w-12 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900 border-r border-blue-200">
+                    કુલ
                   </th>
-                  <th className="px-2 py-2 font-bold text-center text-blue-900">
+                  <th className="w-12 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900 border-r border-blue-200">
                     ઉપલબ્ધ
                   </th>
-                  <th className="px-2 py-2 font-bold text-center text-blue-900">
-                    ભાડે આપેલ
+                  <th className="w-16 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900 border-r border-blue-200">
+                    કુલ બહાર
                   </th>
-                  <th className="px-2 py-2 font-bold text-center text-blue-900">
+                  <th className="w-12 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900 border-r border-blue-200">
                     બીજો ડેપો
+                  </th>
+                  <th className="w-8 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900">
+                    ઉમેરો
                   </th>
                 </tr>
               </thead>
@@ -357,36 +351,39 @@ export function MobileStockPage() {
                   />
                 ))}
                 
-                {/* Subtotal Row */}
-                <tr className="border-t-4 border-green-300 bg-gradient-to-r from-green-100 to-emerald-100">
-                  <td className="px-2 py-2 text-xs font-bold text-green-900 border-r-2 border-green-300">
+                {/* Totals Row */}
+                <tr className="border-t-2 border-green-400 bg-gradient-to-r from-green-100 to-emerald-100">
+                  <td className="px-1.5 py-2 text-[12px] font-bold text-green-800 border-r border-green-300">
                     <div className="flex items-center gap-1">
                       <BarChart3 className="w-3 h-3" />
-                      કુલ જોડ (Subtotal)
+                      કુલ
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-sm font-bold text-center text-green-800 border-r border-green-200 bg-purple-50">
+                  <td className="px-1.5 py-2 text-[12px] font-bold text-center text-purple-700 border-r border-green-200 bg-purple-50">
                     {totals.totalStock}
                   </td>
-                  <td className="px-2 py-2 text-center border-r border-green-200">
-                    <span className="px-2 py-1 text-sm font-bold text-green-800 bg-green-200 rounded-full">
+                  <td className="px-1.5 py-2 text-center border-r border-green-200">
+                    <span className="px-1.5 py-0.5 text-[12px] font-bold text-green-700 bg-green-200 rounded-full border border-green-300">
                       {totals.totalAvailable}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-center border-r border-green-200">
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="text-sm font-bold text-blue-800">
+                  <td className="px-1.5 py-2 text-center border-r border-green-200">
+                    <div className="flex flex-col items-center">
+                      <span className="text-[12px] font-bold text-blue-700">
                         {totals.totalOnRent + totals.totalBorrowedStock}
                       </span>
-                      <div className="text-xs text-gray-600">
-                        ({totals.totalOnRent} + {totals.totalBorrowedStock})
+                      <div className="text-[11px] text-gray-600 leading-none">
+                        ({totals.totalOnRent}+{totals.totalBorrowedStock})
                       </div>
                     </div>
                   </td>
-                  <td className="px-2 py-2 text-center border-r border-green-200">
-                    <span className="px-2 py-1 text-sm font-bold text-blue-800 bg-blue-200 rounded-full">
+                  <td className="px-1.5 py-2 text-center border-r border-green-200">
+                    <span className="px-1.5 py-0.5 text-[12px] font-bold text-orange-700 bg-orange-200 rounded-full border border-orange-300">
                       {totals.totalBorrowedStock}
                     </span>
+                  </td>
+                  <td className="px-1.5 py-2 text-center">
+                    <div className="w-3 h-3 mx-auto bg-green-300 rounded-full"></div>
                   </td>
                 </tr>
               </tbody>
@@ -394,15 +391,16 @@ export function MobileStockPage() {
           </div>
         </div>
 
+        {/* Empty State */}
         {filteredPlateSizes.length === 0 && (
-          <div className="p-8 text-center bg-white border-2 border-blue-100 shadow-lg rounded-xl">
-            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
-              <Package className="w-8 h-8 text-blue-400" />
+          <div className="p-4 text-center bg-white border border-blue-100 rounded-lg shadow-lg">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
+              <Package className="w-6 h-6 text-blue-400" />
             </div>
-            <p className="mb-1 font-medium text-gray-700">
+            <p className="mb-1 text-[11px] font-medium text-gray-700">
               {searchTerm ? 'કોઈ મેચિંગ પ્લેટ સાઇઝ મળ્યો નથી' : 'કોઈ પ્લેટ સાઇઝ કોન્ફિગર નથી'}
             </p>
-            <p className="text-xs text-blue-600">
+            <p className="text-[10px] text-blue-600">
               {searchTerm ? 'શોધ શબ્દ બદલીને પ્રયત્ન કરો' : 'નવા પ્લેટ સાઇઝ ઉમેરો'}
             </p>
           </div>
