@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
-import { Package, Plus, Edit3, Save, X, AlertTriangle, CheckCircle, Search, BarChart3, Lock, Users } from 'lucide-react';
+import { Package, Edit3, Save, X, Search, BarChart3 } from 'lucide-react';
 import { T } from '../contexts/LanguageContext';
 import { useAuth } from '../hooks/useAuth';
 
@@ -12,11 +12,7 @@ interface BorrowedStockData {
   total_borrowed: number;
 }
 
-interface DamageStockData {
-  plate_size: string;
-  total_damaged: number;
-  total_lost: number;
-}
+
 const PLATE_SIZES = [
   '2 X 3',
   '21 X 3', 
@@ -33,12 +29,12 @@ interface StockRowProps {
   plateSize: string;
   stockData: Stock | undefined;
   borrowedStock: number;
-  damageData: { damaged: number; lost: number };
+
   onUpdate: (plateSize: string, values: Partial<Stock>) => Promise<void>;
   isAdmin: boolean;
 }
 
-function StockRow({ plateSize, stockData, borrowedStock, damageData, onUpdate, isAdmin }: StockRowProps) {
+function StockRow({ plateSize, stockData, borrowedStock, onUpdate, isAdmin }: StockRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState({
     total_quantity: stockData?.total_quantity || 0
@@ -129,24 +125,8 @@ function StockRow({ plateSize, stockData, borrowedStock, damageData, onUpdate, i
         </span>
       </td>
 
-      {/* Outstanding Borrowed Stock */}
-      <td className="px-1.5 py-2 text-center border-r border-blue-100">
-        <span className="px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
-          {outstandingBorrowedStock}
-        </span>
-      </td>
-
-      {/* Damage/Loss */}
-      <td className="px-1.5 py-2 text-center border-r border-blue-100">
-        <div className="flex flex-col items-center">
-          <span className="text-[12px] font-bold text-red-600">
-            {damageData.damaged + damageData.lost}
-          </span>
-          <div className="text-[11px] text-gray-500 leading-none">
-            ({damageData.damaged}+{damageData.lost})
-          </div>
-        </div>
-      </td>
+      {/* Add New Button */}
+      <td className="px-1.5 py-2 text-center">{/* Add Button Cell */}</td>
 
       {/* Actions */}
       <td className="px-1.5 py-2 text-center">
@@ -187,16 +167,12 @@ export function MobileStockPage() {
   const { user } = useAuth();
   const [stockItems, setStockItems] = useState<Stock[]>([]);
   const [borrowedStockData, setBorrowedStockData] = useState<BorrowedStockData[]>([]);
-  const [damageStockData, setDamageStockData] = useState<DamageStockData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newPlateSize, setNewPlateSize] = useState('');
 
   useEffect(() => {
     fetchStock();
     fetchBorrowedStock();
-    fetchDamageStock();
   }, []);
 
   const fetchStock = async () => {
@@ -333,6 +309,7 @@ export function MobileStockPage() {
           <p className="text-[10px] text-blue-600">ઇન્વેન્ટરી ટ્રેકિંગ</p>
         </div>
 
+
         {/* Stock Table */}
         <div className="overflow-hidden bg-white border border-blue-200 rounded-lg shadow-lg">
           <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500">
@@ -373,6 +350,7 @@ export function MobileStockPage() {
                     plateSize={plateSize}
                     stockData={stockMap[plateSize]}
                     borrowedStock={borrowedStockMap[plateSize] || 0}
+
                     onUpdate={handleUpdateStock}
                     isAdmin={user?.isAdmin || false}
                   />

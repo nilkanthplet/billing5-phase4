@@ -29,17 +29,36 @@ interface Client {
   mobile_number: string;
 }
 
+interface ChallanItem {
+  id: number;
+  challan_id: number;
+  plate_size: string;
+  borrowed_quantity: number;
+  partner_stock_notes?: string | null;
+  status: string;
+  borrowed_stock: number;
+}
+
+interface ReturnLineItem {
+  id: number;
+  return_id: number;
+  plate_size: string;
+  returned_quantity: number;
+  damage_notes?: string | null;
+  damaged_quantity: number;
+  lost_quantity: number;
+  returned_borrowed_stock: number;
+}
+
 interface UdharChallan {
   id: number;
   challan_number: string;
   challan_date: string;
   status: 'active' | 'completed' | 'partial';
   client: Client;
-  challan_items: {
-    plate_size: string;
-    borrowed_quantity: number;
-  }[];
+  challan_items: ChallanItem[];
   total_plates: number;
+  driver_name?: string | null;
 }
 
 interface JamaChallan {
@@ -47,12 +66,9 @@ interface JamaChallan {
   return_challan_number: string;
   return_date: string;
   client: Client;
-  return_line_items: {
-    plate_size: string;
-    returned_quantity: number;
-    damage_notes?: string;
-  }[];
+  return_line_items: ReturnLineItem[];
   total_plates: number;
+  driver_name?: string | null;
 }
 
 interface EditingChallan {
@@ -105,45 +121,63 @@ export function ChallanManagementPage() {
     try {
       setLoading(true);
       
-      // Fetch Udhar Challans (Issue Challans)
+      // Fetch Udhar Challans (Issue Challans) with complete data
       const { data: udharData, error: udharError } = await supabase
         .from('challans')
         .select(`
-          id,
-          challan_number,
-          challan_date,
-          status,
-          client:clients(id, name, site, mobile_number),
-          challan_items(plate_size, borrowed_quantity, partner_stock_notes)
+          *,
+          client:clients!challans_client_id_fkey(*),
+          challan_items(*)
         `)
         .order('challan_date', { ascending: false });
 
-      if (udharError) throw udharError;
+      if (udharError) {
+        console.error('Error fetching udhar challans:', udharError);
+        throw udharError;
+      }
 
-      // Transform udhar data
+      // Transform udhar data with proper typing
       const transformedUdharData = udharData?.map(challan => ({
-        ...challan,
-        total_plates: challan.challan_items?.reduce((sum, item) => sum + item.borrowed_quantity, 0) || 0
+        id: challan.id,
+        challan_number: challan.challan_number,
+        challan_date: challan.challan_date,
+        status: challan.status as 'active' | 'completed' | 'partial',
+        client: challan.client as Client,
+        challan_items: challan.challan_items as ChallanItem[],
+        total_plates: challan.challan_items?.reduce(
+          (sum: number, item: ChallanItem) => sum + (item.borrowed_quantity || 0), 
+          0
+        ),
+        driver_name: challan.driver_name
       })) || [];
 
-      // Fetch Jama Challans (Return Challans)
+      // Fetch Jama Challans (Return Challans) with complete data
       const { data: jamaData, error: jamaError } = await supabase
         .from('returns')
         .select(`
-          id,
-          return_challan_number,
-          return_date,
-          client:clients(id, name, site, mobile_number),
-          return_line_items(plate_size, returned_quantity, damage_notes)
+          *,
+          client:clients!returns_client_id_fkey(*),
+          return_line_items(*)
         `)
         .order('return_date', { ascending: false });
 
-      if (jamaError) throw jamaError;
+      if (jamaError) {
+        console.error('Error fetching jama challans:', jamaError);
+        throw jamaError;
+      }
 
       // Transform jama data
-      const transformedJamaData = jamaData?.map(returnChallan => ({
-        ...returnChallan,
-        total_plates: returnChallan.return_line_items?.reduce((sum, item) => sum + item.returned_quantity, 0) || 0
+      const transformedJamaData = jamaData?.map(challan => ({
+        id: challan.id,
+        return_challan_number: challan.return_challan_number,
+        return_date: challan.return_date,
+        client: challan.client as Client,
+        return_line_items: challan.return_line_items as ReturnLineItem[],
+        total_plates: challan.return_line_items?.reduce(
+          (sum: number, item: ReturnLineItem) => sum + (item.returned_quantity || 0), 
+          0
+        ),
+        driver_name: challan.driver_name
       })) || [];
 
       setUdharChallans(transformedUdharData);
@@ -171,7 +205,7 @@ export function ChallanManagementPage() {
         if (error) throw error;
 
         const plates: Record<string, number> = {};
-        data.challan_items.forEach(item => {
+        (data.challan_items as ChallanItem[]).forEach((item: ChallanItem) => {
           plates[item.plate_size] = item.borrowed_quantity;
         });
 
@@ -197,7 +231,7 @@ export function ChallanManagementPage() {
         if (error) throw error;
 
         const plates: Record<string, number> = {};
-        data.return_line_items.forEach(item => {
+        (data.return_line_items as ReturnLineItem[]).forEach((item: ReturnLineItem) => {
           plates[item.plate_size] = item.returned_quantity;
         });
 
