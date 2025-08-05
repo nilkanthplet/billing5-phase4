@@ -45,7 +45,10 @@ interface ClientLedger {
     items: Array<{
       plate_size: string;
       quantity: number;
+     borrowed_stock?: number;
+     notes?: string;
     }>;
+   driver_name?: string;
   }>;
 }
 
@@ -107,6 +110,7 @@ export function MobileLedgerPage() {
         .order('created_at', { ascending: false });
 
       if (returnsError) throw returnsError;
+         driver_name,
 
       const ledgers: ClientLedger[] = clients.map(client => {
         const clientChallans = challans.filter(c => c.client_id === client.id);
@@ -163,7 +167,8 @@ export function MobileLedgerPage() {
             items: challan.challan_items.map(item => ({
               plate_size: item.plate_size,
               quantity: item.borrowed_quantity,
-              notes: item.notes || ''
+             borrowed_stock: item.borrowed_stock || 0,
+             notes: item.partner_stock_notes || ''
             })),
             driver_name: challan.driver_name
           })),
@@ -176,6 +181,7 @@ export function MobileLedgerPage() {
             items: returnRecord.return_line_items.map(item => ({
               plate_size: item.plate_size,
               quantity: item.returned_quantity,
+             borrowed_stock: 0, // Returns don't have borrowed stock
               notes: item.damage_notes || ''
             })),
             driver_name: returnRecord.driver_name
@@ -482,6 +488,15 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     return item?.quantity || 0;
   };
 
+  const getBorrowedStock = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
+    const item = transaction.items.find(i => i.plate_size === plateSize);
+    return item?.borrowed_stock || 0;
+  };
+
+  const getNotes = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
+    const item = transaction.items.find(i => i.plate_size === plateSize);
+    return item?.notes || '';
+  };
   return (
     <div className="p-3">
       {/* Blue Themed Header */}
@@ -492,7 +507,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
         <h4 className="text-sm font-semibold text-gray-900">પ્લેટ પ્રવૃત્તિ</h4>
       </div>
       
-      {/* Table with ALL Plate Sizes */}
+      {/* Enhanced Table with Borrowed Stock and Notes */}
       <div className="overflow-hidden bg-white border-2 border-blue-100 rounded-lg shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -506,6 +521,12 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                 </th>
                 <th className="px-1 py-1.5 text-center font-bold min-w-[60px] border-l border-blue-400">
                   <div className="text-xs">કુલ</div>
+                </th>
+                <th className="px-1 py-1.5 text-center font-bold min-w-[60px] border-l border-blue-400">
+                  <div className="text-xs">ઉધાર સ્ટોક</div>
+                </th>
+                <th className="px-1 py-1.5 text-center font-bold min-w-[80px] border-l border-blue-400">
+                  <div className="text-xs">નોંધ</div>
                 </th>
                 {allPlateSizes.map(size => (
                   <th key={size} className="px-1 py-1.5 text-center font-bold min-w-[50px] border-l border-blue-400">
@@ -528,6 +549,12 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                 </td>
                 <td className="px-1 py-1.5 text-center border-l border-blue-200">
                   <div className="text-xs font-semibold text-blue-700">{ledger.plate_balances.reduce((sum, balance) => sum + Math.abs(balance.outstanding), 0)}</div>
+                </td>
+                <td className="px-1 py-1.5 text-center border-l border-blue-200">
+                  <div className="text-xs font-semibold text-blue-700">-</div>
+                </td>
+                <td className="px-1 py-1.5 text-center border-l border-blue-200">
+                  <div className="text-xs font-semibold text-blue-700">-</div>
                 </td>
                 {/* CHANGED: Show ALL plate sizes, even blank ones */}
                 {allPlateSizes.map(size => {
@@ -554,7 +581,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
               {/* Transaction Rows - Shows ALL sizes */}
               {ledger.all_transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={allPlateSizes.length + 3} className="px-1 py-4 text-center text-blue-500">
+                  <td colSpan={allPlateSizes.length + 5} className="px-1 py-4 text-center text-blue-500">
                     <div className="text-xs">કોઈ ચલણ નથી</div>
                   </td>
                 </tr>
@@ -592,6 +619,28 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                       </div>
                     </td>
 
+                    {/* Borrowed Stock Column */}
+                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
+                      <div className="text-xs font-medium text-purple-600">
+                        {transaction.type === 'udhar' 
+                          ? transaction.items.reduce((sum, item) => sum + (item.borrowed_stock || 0), 0)
+                          : '-'
+                        }
+                      </div>
+                    </td>
+
+                    {/* Notes Column */}
+                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
+                      <div className="text-xs text-gray-600 max-w-[80px] truncate">
+                        {(() => {
+                          const notesArray = transaction.items
+                            .map(item => item.notes)
+                            .filter(note => note && note.trim())
+                            .slice(0, 1); // Show only first note to save space
+                          return notesArray.length > 0 ? notesArray[0] : '-';
+                        })()}
+                      </div>
+                    </td>
                     {/* CHANGED: Show ALL plate sizes, leave blank if no quantity */}
                     {allPlateSizes.map(size => {
                       const quantity = getTransactionQuantity(transaction, size);
@@ -644,6 +693,10 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 bg-blue-400 rounded-full shadow-sm"></div>
               <span className="font-medium text-blue-700">વર્તમાન બેલેન્સ (Balance)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-3 h-3 bg-purple-400 rounded-full shadow-sm"></div>
+              <span className="font-medium text-blue-700">ઉધાર સ્ટોક (Borrowed Stock)</span>
             </div>
           </div>
         </div>
