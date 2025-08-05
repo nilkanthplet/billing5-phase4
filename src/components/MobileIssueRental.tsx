@@ -225,7 +225,8 @@ export function MobileIssueRental() {
         challan_id: challan.id,
         plate_size: size,
         borrowed_quantity: quantities[size],
-        borrowed_stock: borrowedStock[size] || 0
+        borrowed_stock: borrowedStock[size] || 0,
+        partner_stock_notes: notes[size]?.trim() || null
       }));
 
       const { error: lineItemsError } = await supabase
