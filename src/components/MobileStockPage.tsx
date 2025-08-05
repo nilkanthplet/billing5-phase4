@@ -1,7 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { Database } from '../lib/supabase';
-import { Package, Edit3, Save, X, Search, BarChart3 } from 'lucide-react';
+import { 
+  Package, 
+  Edit3, 
+  Save, 
+  X, 
+  Search, 
+  BarChart3, 
+  Plus,
+  Minus,
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  CheckCircle
+} from 'lucide-react';
 import { T } from '../contexts/LanguageContext';
 import { useAuth } from '../hooks/useAuth';
 
@@ -11,7 +27,6 @@ interface BorrowedStockData {
   plate_size: string;
   total_borrowed: number;
 }
-
 
 const PLATE_SIZES = [
   '2 X 3',
@@ -25,28 +40,32 @@ const PLATE_SIZES = [
   '2 ફુટ'
 ];
 
-interface StockRowProps {
+interface StockCardProps {
   plateSize: string;
   stockData: Stock | undefined;
   borrowedStock: number;
-
   onUpdate: (plateSize: string, values: Partial<Stock>) => Promise<void>;
   isAdmin: boolean;
 }
 
-function StockRow({ plateSize, stockData, borrowedStock, onUpdate, isAdmin }: StockRowProps) {
+function StockCard({ plateSize, stockData, borrowedStock, onUpdate, isAdmin }: StockCardProps) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [editValues, setEditValues] = useState({
     total_quantity: stockData?.total_quantity || 0
   });
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSave = async () => {
+    setIsLoading(true);
     try {
       await onUpdate(plateSize, { total_quantity: editValues.total_quantity });
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating stock:', error);
       alert('સ્ટોક અપડેટ કરવામાં ભૂલ. કૃપા કરીને ફરી પ્રયત્ન કરો.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -57,109 +76,197 @@ function StockRow({ plateSize, stockData, borrowedStock, onUpdate, isAdmin }: St
     setIsEditing(false);
   };
 
-  const getAvailabilityColor = (available: number) => {
-    if (available > 20) return 'bg-green-100 text-green-700 border-green-200';
-    if (available > 5) return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-    return 'bg-red-100 text-red-700 border-red-200';
+  const incrementStock = () => {
+    setEditValues(prev => ({
+      ...prev,
+      total_quantity: prev.total_quantity + 1
+    }));
+  };
+
+  const decrementStock = () => {
+    setEditValues(prev => ({
+      ...prev,
+      total_quantity: Math.max(0, prev.total_quantity - 1)
+    }));
+  };
+
+  const getAvailabilityStatus = (available: number) => {
+    if (available > 20) return { 
+      color: 'text-emerald-600', 
+      bg: 'bg-emerald-50', 
+      border: 'border-emerald-200',
+      status: 'સારો',
+      icon: CheckCircle
+    };
+    if (available > 5) return { 
+      color: 'text-amber-600', 
+      bg: 'bg-amber-50', 
+      border: 'border-amber-200',
+      status: 'મધ્યમ',
+      icon: AlertTriangle
+    };
+    return { 
+      color: 'text-red-600', 
+      bg: 'bg-red-50', 
+      border: 'border-red-200',
+      status: 'ઓછો',
+      icon: AlertTriangle
+    };
   };
 
   const totalOnRent = (stockData?.on_rent_quantity || 0) + borrowedStock;
+  const availabilityStatus = getAvailabilityStatus(stockData?.available_quantity || 0);
+  const StatusIcon = availabilityStatus.icon;
 
   return (
-    <tr className="transition-colors border-b border-blue-100 hover:bg-blue-25">
-      {/* Plate Size */}
-      <td className="px-1.5 py-2 text-[12px] font-semibold text-gray-800 border-r border-blue-100">
-        <div className="min-w-[45px]">{plateSize}</div>
-      </td>
-      
-      {/* Total Stock */}
-      <td className="px-1.5 py-2 text-center border-r border-blue-100">
-        {isEditing ? (
-          <input
-            type="number"
-            min="0"
-            value={editValues.total_quantity}
-            onChange={(e) => setEditValues(prev => ({
-              ...prev, 
-              total_quantity: parseInt(e.target.value) || 0
-            }))}
-            className="w-12 px-1 py-1 text-[12px] text-center border border-blue-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-          />
-        ) : (
-          <span className="text-[12px] font-bold text-purple-600">
-            {stockData?.total_quantity || 0}
-          </span>
-        )}
-      </td>
-
-      {/* Available */}
-      <td className="px-1.5 py-2 text-center border-r border-blue-100">
-        {isEditing ? (
-          <div className="text-[12px] text-gray-500">
-            <div>{stockData?.available_quantity || 0}</div>
-            <div className="text-blue-400">ઓટો</div>
+    <div className="overflow-hidden transition-all duration-300 bg-white border shadow-sm border-slate-200 rounded-2xl hover:shadow-md">
+      {/* Main Card Content */}
+      <div className="p-4">
+        {/* Header Row */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600">
+              <span className="text-sm font-bold text-white">{plateSize}</span>
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-800">{plateSize}</h3>
+              <p className="text-xs text-slate-500">પ્લેટ સાઇઝ</p>
+            </div>
           </div>
-        ) : (
-          <span className={`px-1.5 py-0.5 rounded-full text-[12px] font-medium border ${getAvailabilityColor(stockData?.available_quantity || 0)}`}>
-            {stockData?.available_quantity || 0}
-          </span>
-        )}
-      </td>
-
-      {/* Total On Rent */}
-      <td className="px-1.5 py-2 text-center border-r border-blue-100">
-        <div className="flex flex-col items-center">
-          <span className="text-[12px] font-bold text-blue-600">
-            {totalOnRent}
-          </span>
-          <div className="text-[11px] text-gray-500 leading-none">
-            ({stockData?.on_rent_quantity || 0}+{borrowedStock})
+          
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="flex items-center justify-center w-8 h-8 transition-colors rounded-lg bg-slate-100 hover:bg-slate-200"
+              >
+                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+            )}
           </div>
         </div>
-      </td>
 
-      {/* Borrowed */}
-      <td className="px-1.5 py-2 text-center border-r border-blue-100">
-        <span className="px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-orange-100 text-orange-700 border border-orange-200">
-          {borrowedStock}
-        </span>
-      </td>
-
-      {/* Add New Button */}
-      <td className="px-1.5 py-2 text-center">{/* Add Button Cell */}</td>
-
-      {/* Actions */}
-      <td className="px-1.5 py-2 text-center">
-        {isEditing ? (
-          <div className="flex justify-center gap-1">
-            <button
-              onClick={handleSave}
-              className="p-1 text-white transition-colors bg-green-500 rounded hover:bg-green-600"
-              title="સેવ"
-            >
-              <Save className="w-3 h-3" />
-            </button>
-            <button
-              onClick={handleCancel}
-              className="p-1 text-white transition-colors bg-gray-500 rounded hover:bg-gray-600"
-              title="કેન્સલ"
-            >
-              <X className="w-3 h-3" />
-            </button>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          {/* Total Stock */}
+          <div className="p-3 border border-purple-200 rounded-xl bg-gradient-to-br from-purple-50 to-purple-100">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-purple-600">કુલ સ્ટોક</span>
+              <Package className="w-4 h-4 text-purple-500" />
+            </div>
+            {isEditing ? (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={decrementStock}
+                  className="flex items-center justify-center w-8 h-8 transition-colors bg-white border border-purple-200 rounded-lg hover:bg-purple-50"
+                >
+                  <Minus className="w-3 h-3 text-purple-600" />
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  value={editValues.total_quantity}
+                  onChange={(e) => setEditValues(prev => ({
+                    ...prev, 
+                    total_quantity: parseInt(e.target.value) || 0
+                  }))}
+                  className="flex-1 px-2 py-1 text-sm font-bold text-center border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+                <button
+                  onClick={incrementStock}
+                  className="flex items-center justify-center w-8 h-8 transition-colors bg-white border border-purple-200 rounded-lg hover:bg-purple-50"
+                >
+                  <Plus className="w-3 h-3 text-purple-600" />
+                </button>
+              </div>
+            ) : (
+              <span className="text-2xl font-bold text-purple-700">
+                {stockData?.total_quantity || 0}
+              </span>
+            )}
           </div>
-        ) : (
-          isAdmin && (
-            <button
-              onClick={() => setIsEditing(true)}
-              className="p-1 text-blue-600 transition-colors rounded hover:bg-blue-100"
-              title="એડિટ"
-            >
-              <Edit3 className="w-3 h-3" />
-            </button>
-          )
+
+          {/* Available Stock */}
+          <div className={`p-3 rounded-xl border ${availabilityStatus.bg} ${availabilityStatus.border}`}>
+            <div className="flex items-center justify-between mb-1">
+              <span className={`text-xs font-medium ${availabilityStatus.color}`}>ઉપલબ્ધ</span>
+              <StatusIcon className={`w-4 h-4 ${availabilityStatus.color}`} />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className={`text-2xl font-bold ${availabilityStatus.color}`}>
+                {stockData?.available_quantity || 0}
+              </span>
+              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${availabilityStatus.bg} ${availabilityStatus.color} border ${availabilityStatus.border}`}>
+                {availabilityStatus.status}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Secondary Stats */}
+        <div className="grid grid-cols-2 gap-3">
+          {/* Total On Rent */}
+          <div className="p-3 border border-blue-200 bg-blue-50 rounded-xl">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-blue-600">કુલ બહાર</span>
+              <TrendingUp className="w-4 h-4 text-blue-500" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold text-blue-700">{totalOnRent}</span>
+              <span className="text-xs text-blue-500">
+                ({stockData?.on_rent_quantity || 0}+{borrowedStock})
+              </span>
+            </div>
+          </div>
+
+          {/* Borrowed Stock */}
+          <div className="p-3 border border-orange-200 bg-orange-50 rounded-xl">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs font-medium text-orange-600">બીજો ડેપો</span>
+              <TrendingDown className="w-4 h-4 text-orange-500" />
+            </div>
+            <span className="text-lg font-bold text-orange-700">{borrowedStock}</span>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        {isAdmin && (
+          <div className="mt-4">
+            {isEditing ? (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSave}
+                  disabled={isLoading}
+                  className="flex items-center justify-center flex-1 gap-2 px-4 py-3 text-sm font-medium text-white transition-colors bg-emerald-500 rounded-xl hover:bg-emerald-600 disabled:opacity-50"
+                >
+                  {isLoading ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Save className="w-4 h-4" />
+                  )}
+                  સેવ કરો
+                </button>
+                <button
+                  onClick={handleCancel}
+                  className="flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-colors bg-slate-200 rounded-xl text-slate-700 hover:bg-slate-300"
+                >
+                  <X className="w-4 h-4" />
+                  કેન્સલ
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="flex items-center justify-center w-full gap-2 px-4 py-3 text-sm font-medium text-white transition-colors bg-blue-500 rounded-xl hover:bg-blue-600"
+              >
+                <Edit3 className="w-4 h-4" />
+                એડિટ કરો
+              </button>
+            )}
+          </div>
         )}
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 }
 
@@ -169,6 +276,8 @@ export function MobileStockPage() {
   const [borrowedStockData, setBorrowedStockData] = useState<BorrowedStockData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showTotals, setShowTotals] = useState(true);
 
   useEffect(() => {
     fetchStock();
@@ -221,6 +330,12 @@ export function MobileStockPage() {
     } catch (error) {
       console.error('Error fetching borrowed stock:', error);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([fetchStock(), fetchBorrowedStock()]);
+    setRefreshing(false);
   };
 
   const handleUpdateStock = async (plateSize: string, values: Partial<Stock>) => {
@@ -283,131 +398,151 @@ export function MobileStockPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
-        <div className="p-2 space-y-2">
-          <div className="pt-2 text-center">
-            <div className="w-24 h-4 mx-auto mb-1 bg-blue-200 rounded animate-pulse"></div>
-            <div className="w-32 h-3 mx-auto bg-blue-200 rounded animate-pulse"></div>
+      <div className="min-h-screen pb-20 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="p-4 space-y-4">
+          {/* Header Skeleton */}
+          <div className="text-center animate-pulse">
+            <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-200"></div>
+            <div className="w-32 h-4 mx-auto mb-2 rounded bg-slate-200"></div>
+            <div className="w-24 h-3 mx-auto rounded bg-slate-200"></div>
           </div>
-          <div className="p-2 bg-white border border-blue-100 rounded-lg shadow-sm animate-pulse">
-            <div className="w-full h-32 bg-blue-200 rounded"></div>
-          </div>
+          
+          {/* Cards Skeleton */}
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="p-4 bg-white border rounded-2xl border-slate-200 animate-pulse">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 rounded-xl bg-slate-200"></div>
+                <div className="flex-1">
+                  <div className="w-20 h-4 mb-1 rounded bg-slate-200"></div>
+                  <div className="w-16 h-3 rounded bg-slate-200"></div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[1, 2, 3, 4].map((j) => (
+                  <div key={j} className="p-3 rounded-xl bg-slate-100">
+                    <div className="w-16 h-3 mb-2 rounded bg-slate-200"></div>
+                    <div className="w-12 h-6 rounded bg-slate-200"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
-      <div className="p-2 space-y-3">
-        {/* Header */}
-        <div className="pt-2 text-center">
-          <div className="inline-flex items-center justify-center w-8 h-8 mb-1 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
-            <Package className="w-4 h-4 text-white" />
+    <div className="min-h-screen pb-20 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="p-4 space-y-6">
+        {/* Enhanced Header */}
+        <div className="text-center">
+          <div className="relative inline-flex items-center justify-center w-16 h-16 mb-4 rounded-full shadow-lg bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600">
+            <Package className="w-8 h-8 text-white" />
+            <div className="absolute flex items-center justify-center w-6 h-6 rounded-full -top-1 -right-1 bg-emerald-500">
+              <span className="text-xs font-bold text-white">{filteredPlateSizes.length}</span>
+            </div>
           </div>
-          <h1 className="mb-0.5 text-sm font-bold text-gray-900">સ્ટોક મેનેજમેન્ટ</h1>
-          <p className="text-[10px] text-blue-600">ઇન્વેન્ટરી ટ્રેકિંગ</p>
+          <h1 className="mb-2 text-2xl font-bold text-slate-800">સ્ટોક મેનેજમેન્ટ</h1>
+          <p className="text-sm text-slate-600">ઇન્વેન્ટરી ટ્રેકિંગ અને મેનેજમેન્ટ</p>
         </div>
 
-
-        {/* Stock Table */}
-        <div className="overflow-hidden bg-white border border-blue-200 rounded-lg shadow-lg">
-          <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-500">
-            <h2 className="flex items-center gap-1 text-[11px] font-bold text-white">
-              <Package className="w-3 h-3" />
-              સ્ટોક ટેબલ
-            </h2>
+        {/* Search and Refresh */}
+        <div className="flex gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute w-5 h-5 transform -translate-y-1/2 left-3 top-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="પ્લેટ સાઇઝ શોધો..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full py-3 pl-10 pr-4 transition-colors border rounded-xl border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/80 backdrop-blur-sm"
+            />
           </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full text-[10px] table-fixed">
-              <thead>
-                <tr className="border-b border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
-                  <th className="w-12 px-1.5 py-1.5 text-[12px] font-bold text-left text-blue-900 border-r border-blue-200">
-                    સાઇઝ
-                  </th>
-                  <th className="w-12 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900 border-r border-blue-200">
-                    કુલ
-                  </th>
-                  <th className="w-12 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900 border-r border-blue-200">
-                    ઉપલબ્ધ
-                  </th>
-                  <th className="w-16 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900 border-r border-blue-200">
-                    કુલ બહાર
-                  </th>
-                  <th className="w-12 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900 border-r border-blue-200">
-                    બીજો ડેપો
-                  </th>
-                  <th className="w-8 px-1.5 py-1.5 text-[12px] font-bold text-center text-blue-900">
-                    ઉમેરો
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredPlateSizes.map((plateSize) => (
-                  <StockRow
-                    key={plateSize}
-                    plateSize={plateSize}
-                    stockData={stockMap[plateSize]}
-                    borrowedStock={borrowedStockMap[plateSize] || 0}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="flex items-center justify-center w-12 h-12 transition-colors bg-white border rounded-xl border-slate-200 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`w-5 h-5 text-slate-600 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
 
-                    onUpdate={handleUpdateStock}
-                    isAdmin={user?.isAdmin || false}
-                  />
-                ))}
-                
-                {/* Totals Row */}
-                <tr className="border-t-2 border-green-400 bg-gradient-to-r from-green-100 to-emerald-100">
-                  <td className="px-1.5 py-2 text-[12px] font-bold text-green-800 border-r border-green-300">
-                    <div className="flex items-center gap-1">
-                      <BarChart3 className="w-3 h-3" />
-                      કુલ
-                    </div>
-                  </td>
-                  <td className="px-1.5 py-2 text-[12px] font-bold text-center text-purple-700 border-r border-green-200 bg-purple-50">
-                    {totals.totalStock}
-                  </td>
-                  <td className="px-1.5 py-2 text-center border-r border-green-200">
-                    <span className="px-1.5 py-0.5 text-[12px] font-bold text-green-700 bg-green-200 rounded-full border border-green-300">
-                      {totals.totalAvailable}
-                    </span>
-                  </td>
-                  <td className="px-1.5 py-2 text-center border-r border-green-200">
-                    <div className="flex flex-col items-center">
-                      <span className="text-[12px] font-bold text-blue-700">
-                        {totals.totalOnRent + totals.totalBorrowedStock}
-                      </span>
-                      <div className="text-[11px] text-gray-600 leading-none">
-                        ({totals.totalOnRent}+{totals.totalBorrowedStock})
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-1.5 py-2 text-center border-r border-green-200">
-                    <span className="px-1.5 py-0.5 text-[12px] font-bold text-orange-700 bg-orange-200 rounded-full border border-orange-300">
-                      {totals.totalBorrowedStock}
-                    </span>
-                  </td>
-                  <td className="px-1.5 py-2 text-center">
-                    <div className="w-3 h-3 mx-auto bg-green-300 rounded-full"></div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        {/* Totals Summary Card */}
+        {showTotals && (
+          <div className="overflow-hidden bg-white border shadow-lg border-slate-200 rounded-2xl">
+            <div className="p-4 bg-gradient-to-r from-emerald-500 to-teal-600">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-white" />
+                  <h2 className="text-lg font-bold text-white">કુલ આંકડા</h2>
+                </div>
+                <button
+                  onClick={() => setShowTotals(!showTotals)}
+                  className="p-1 transition-colors rounded-lg hover:bg-white/20"
+                >
+                  <ChevronUp className="w-5 h-5 text-white" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 text-center border border-purple-200 bg-purple-50 rounded-xl">
+                  <div className="text-2xl font-bold text-purple-700">{totals.totalStock}</div>
+                  <div className="text-xs font-medium text-purple-600">કુલ સ્ટોક</div>
+                </div>
+                <div className="p-3 text-center border bg-emerald-50 border-emerald-200 rounded-xl">
+                  <div className="text-2xl font-bold text-emerald-700">{totals.totalAvailable}</div>
+                  <div className="text-xs font-medium text-emerald-600">ઉપલબ્ધ</div>
+                </div>
+                <div className="p-3 text-center border border-blue-200 bg-blue-50 rounded-xl">
+                  <div className="text-2xl font-bold text-blue-700">{totals.totalOnRent + totals.totalBorrowedStock}</div>
+                  <div className="text-xs font-medium text-blue-600">કુલ બહાર</div>
+                </div>
+                <div className="p-3 text-center border border-orange-200 bg-orange-50 rounded-xl">
+                  <div className="text-2xl font-bold text-orange-700">{totals.totalBorrowedStock}</div>
+                  <div className="text-xs font-medium text-orange-600">બીજો ડેપો</div>
+                </div>
+              </div>
+            </div>
           </div>
+        )}
+
+        {/* Stock Cards */}
+        <div className="space-y-4">
+          {filteredPlateSizes.map((plateSize) => (
+            <StockCard
+              key={plateSize}
+              plateSize={plateSize}
+              stockData={stockMap[plateSize]}
+              borrowedStock={borrowedStockMap[plateSize] || 0}
+              onUpdate={handleUpdateStock}
+              isAdmin={user?.isAdmin || false}
+            />
+          ))}
         </div>
 
         {/* Empty State */}
         {filteredPlateSizes.length === 0 && (
-          <div className="p-4 text-center bg-white border border-blue-100 rounded-lg shadow-lg">
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-2 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
-              <Package className="w-6 h-6 text-blue-400" />
+          <div className="p-8 text-center bg-white border shadow-lg border-slate-200 rounded-2xl">
+            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100">
+              <Package className="w-8 h-8 text-slate-400" />
             </div>
-            <p className="mb-1 text-[11px] font-medium text-gray-700">
+            <h3 className="mb-2 text-lg font-semibold text-slate-800">
               {searchTerm ? 'કોઈ મેચિંગ પ્લેટ સાઇઝ મળ્યો નથી' : 'કોઈ પ્લેટ સાઇઝ કોન્ફિગર નથી'}
-            </p>
-            <p className="text-[10px] text-blue-600">
+            </h3>
+            <p className="text-sm text-slate-600">
               {searchTerm ? 'શોધ શબ્દ બદલીને પ્રયત્ન કરો' : 'નવા પ્લેટ સાઇઝ ઉમેરો'}
             </p>
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="px-4 py-2 mt-4 text-sm font-medium text-white transition-colors bg-blue-500 rounded-xl hover:bg-blue-600"
+              >
+                શોધ સાફ કરો
+              </button>
+            )}
           </div>
         )}
       </div>

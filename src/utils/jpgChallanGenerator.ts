@@ -57,8 +57,8 @@ const COORDINATES: Record<'issue' | 'return', TemplateCoordinates> = {
     row_height: 130,
     plate_size_x: 220,
     quantity_x: 740,    // Spacing for quantity column
-    borrowed_x: 965,    // Added borrowed column
-    notes_x: 1190,      // Notes column
+    borrowed_x: 1250,    // Added more left spacing for borrowed column
+    notes_x: 1390,      // Reduced spacing between borrowed and notes
     total: { x: 700, y: 2750 },
     second_total: { x: 1420, y: 3180 }, // Second total
     driver_name: { x: 1930, y: 2492 }    // Driver name position
@@ -74,8 +74,8 @@ const COORDINATES: Record<'issue' | 'return', TemplateCoordinates> = {
     row_height: 130,
     plate_size_x: 220,
     quantity_x: 740,    // Spacing for quantity column
-    borrowed_x: 965,    // Added borrowed column
-    notes_x: 1300,      // Notes column
+    borrowed_x: 1250,    // Added more left spacing for borrowed column
+    notes_x: 1390,      // Reduced spacing between borrowed and notes
     total: { x: 700, y: 2750 },
     second_total: { x: 1420, y: 3180 }, // Second total
     driver_name: { x: 1930, y: 2492 }    // Driver name position
@@ -210,10 +210,13 @@ function renderPlatesTable(
     
     // Always render the row position for this plate size
     if (plateData && plateData.quantity > 0) {
-      // Quantity - render in the quantity column
+      // Calculate combined total for this size
+      const totalForSize = plateData.quantity + (plateData.borrowed_stock || 0);
+
+      // Quantity - render the total in the quantity column
       renderHighContrastText(
         ctx,
-        plateData.quantity.toString(),
+        totalForSize.toString(),
         coords.quantity_x,
         currentY,
         56,  // Font size
@@ -255,10 +258,14 @@ function renderTotal(
   data: ChallanData, 
   coords: TemplateCoordinates
 ) {
-  // Render the main total
+  // Calculate total borrowed stock and grand total
+  const totalBorrowedStock = data.plates.reduce((sum, plate) => sum + (plate.borrowed_stock || 0), 0);
+  const grandTotal = data.total_quantity + totalBorrowedStock;
+
+  // Render the grand total
   renderHighContrastText(
     ctx,
-    data.total_quantity.toString(),
+    grandTotal.toString(),
     coords.total.x,
     coords.total.y,
     60,  // Further increased font size
@@ -277,10 +284,10 @@ function renderTotal(
     );
   }
 
-  // Render the second total (100 + current total)
+  // Render the second total with grand total
   renderHighContrastText(
     ctx,
-    (data.total_quantity).toString(),
+    grandTotal.toString(),
     coords.second_total.x,
     coords.second_total.y,
     60,
