@@ -12,6 +12,11 @@ interface BorrowedStockData {
   total_borrowed: number;
 }
 
+interface DamageStockData {
+  plate_size: string;
+  total_damaged: number;
+  total_lost: number;
+}
 const PLATE_SIZES = [
   '2 X 3',
   '21 X 3', 
@@ -28,11 +33,12 @@ interface StockRowProps {
   plateSize: string;
   stockData: Stock | undefined;
   borrowedStock: number;
+  damageData: { damaged: number; lost: number };
   onUpdate: (plateSize: string, values: Partial<Stock>) => Promise<void>;
   isAdmin: boolean;
 }
 
-function StockRow({ plateSize, stockData, borrowedStock, onUpdate, isAdmin }: StockRowProps) {
+function StockRow({ plateSize, stockData, borrowedStock, damageData, onUpdate, isAdmin }: StockRowProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editValues, setEditValues] = useState({
     total_quantity: stockData?.total_quantity || 0
@@ -162,6 +168,7 @@ export function MobileStockPage() {
   const { user } = useAuth();
   const [stockItems, setStockItems] = useState<Stock[]>([]);
   const [borrowedStockData, setBorrowedStockData] = useState<BorrowedStockData[]>([]);
+  const [damageStockData, setDamageStockData] = useState<DamageStockData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -170,6 +177,7 @@ export function MobileStockPage() {
   useEffect(() => {
     fetchStock();
     fetchBorrowedStock();
+    fetchDamageStock();
   }, []);
 
   const fetchStock = async () => {

@@ -138,6 +138,7 @@ export type Database = {
           client_id: string
           return_date: string
           created_at: string
+          driver_name: string | null
         }
         Insert: {
           id?: number
@@ -145,6 +146,7 @@ export type Database = {
           client_id: string
           return_date: string
           created_at?: string
+          driver_name?: string | null
         }
         Update: {
           id?: number
@@ -152,6 +154,7 @@ export type Database = {
           client_id?: string
           return_date?: string
           created_at?: string
+          driver_name?: string | null
         }
       }
       return_line_items: {
@@ -162,6 +165,8 @@ export type Database = {
           returned_quantity: number
           damage_notes: string | null
           created_at: string
+          damaged_quantity: number
+          lost_quantity: number
         }
         Insert: {
           id?: number
@@ -170,6 +175,8 @@ export type Database = {
           returned_quantity: number
           damage_notes?: string | null
           created_at?: string
+          damaged_quantity?: number
+          lost_quantity?: number
         }
         Update: {
           id?: number
@@ -178,6 +185,8 @@ export type Database = {
           returned_quantity?: number
           damage_notes?: string | null
           created_at?: string
+          damaged_quantity?: number
+          lost_quantity?: number
         }
       }
       bills: {

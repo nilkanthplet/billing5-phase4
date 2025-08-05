@@ -22,6 +22,7 @@ import { generateJPGChallan, downloadJPGChallan } from "../utils/jpgChallanGener
 import { ChallanData } from "./challans/types";
 
 type Client = Database["public"]["Tables"]["clients"]["Row"];
+type Stock = Database["public"]["Tables"]["stock"]["Row"];
 
 const PLATE_SIZES = [
   "2 X 3", "21 X 3", "18 X 3", "15 X 3", "12 X 3",
@@ -41,21 +42,37 @@ export function MobileReturnPage() {
   const [driverName, setDriverName] = useState("");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [damagedQuantities, setDamagedQuantities] = useState<Record<string, number>>({});
+  const [lostQuantities, setLostQuantities] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [showClientSelector, setShowClientSelector] = useState(false);
   const [outstandingPlates, setOutstandingPlates] = useState<OutstandingPlates>({});
   const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
+  const [stockData, setStockData] = useState<Stock[]>([]);
 
   useEffect(() => { 
     generateNextChallanNumber(); 
     fetchPreviousDriverNames();
+    fetchStockData();
   }, []);
-  useEffect(() => { if (selectedClient) fetchOutstandingPlates(); }, [selectedClient]);
+  
+  useEffect(() => { 
+    if (selectedClient) fetchOutstandingPlates(); 
+  }, [selectedClient]);
+
+  async function fetchStockData() {
+    try {
+      const { data, error } = await supabase.from("stock").select("*").order("plate_size");
+      if (error) throw error;
+      setStockData(data || []);
+    } catch (error) {
+      console.error("Error fetching stock data:", error);
+    }
+  }
 
   async function fetchPreviousDriverNames() {
     try {
-      // Get drivers from both challans and returns
       const [{ data: challanDrivers }, { data: returnDrivers }] = await Promise.all([
         supabase
           .from('challans')
@@ -70,12 +87,10 @@ export function MobileReturnPage() {
       ]);
 
       if (challanDrivers || returnDrivers) {
-        // Combine and filter unique driver names from both tables
         const allDrivers = [...(challanDrivers || []), ...(returnDrivers || [])]
           .map(record => record.driver_name)
           .filter((name): name is string => name !== null && name.trim() !== '');
         
-        // Get unique drivers maintaining the order of first appearance
         const uniqueDrivers = [...new Set(allDrivers)];
         setPreviousDrivers(uniqueDrivers);
       }
@@ -116,7 +131,6 @@ export function MobileReturnPage() {
         });
       });
 
-      // Show all plate sizes with their outstanding amounts (can be negative)
       setOutstandingPlates(outstanding);
     } catch (error) {
       console.error("Error fetching outstanding plates:", error);
@@ -126,7 +140,6 @@ export function MobileReturnPage() {
 
   async function generateNextChallanNumber() {
     try {
-      // Get the most recent return challan number (last one created)
       const { data, error } = await supabase
         .from("returns")
         .select("return_challan_number")
@@ -135,34 +148,25 @@ export function MobileReturnPage() {
 
       if (error) throw error;
       
-      let nextNumber = "1"; // Default if no returns exist
+      let nextNumber = "1";
       
       if (data && data.length > 0) {
         const lastChallanNumber = data[0].return_challan_number;
-        
-        // Extract prefix and trailing number using regex
-        // This regex finds: (any characters)(trailing digits)
         const match = lastChallanNumber.match(/^(.*)(\d+)$/);
         
         if (match) {
-          const prefix = match[1]; // Characters before number (e.g., "KO", "ABC", or "")
-          const lastNumber = parseInt(match[2]); // The trailing number part
+          const prefix = match[1];
+          const lastNumber = parseInt(match[2]);
           const incrementedNumber = lastNumber + 1;
-          
-          // Keep the same number of digits with leading zeros if needed
           const digitCount = match[2].length;
           const paddedNumber = incrementedNumber.toString().padStart(digitCount, '0');
-          
           nextNumber = prefix + paddedNumber;
         } else {
-          // If no trailing number found, append "1" 
           nextNumber = lastChallanNumber + "1";
         }
       }
       
       setSuggestedChallanNumber(nextNumber);
-      
-      // Auto-fill only if field is empty
       if (!returnChallanNumber) setReturnChallanNumber(nextNumber);
       
     } catch (error) {
@@ -183,8 +187,55 @@ export function MobileReturnPage() {
     setQuantities(prev => ({ ...prev, [size]: quantity }));
   }
 
+  function handleDamagedQuantityChange(size: string, value: string) {
+    const quantity = parseInt(value) || 0;
+    setDamagedQuantities(prev => ({ ...prev, [size]: quantity }));
+  }
+
+  function handleLostQuantityChange(size: string, value: string) {
+    const quantity = parseInt(value) || 0;
+    setLostQuantities(prev => ({ ...prev, [size]: quantity }));
+  }
+
   function handleNoteChange(size: string, value: string) {
     setNotes(prev => ({ ...prev, [size]: value }));
+  }
+
+  async function updateStockAfterReturn() {
+    try {
+      // Update stock quantities for returned plates
+      for (const [plateSize, returnedQty] of Object.entries(quantities)) {
+        if (returnedQty > 0) {
+          const stockItem = stockData.find(s => s.plate_size === plateSize);
+          if (stockItem) {
+            const damagedQty = damagedQuantities[plateSize] || 0;
+            const lostQty = lostQuantities[plateSize] || 0;
+            const goodReturnedQty = returnedQty - damagedQty - lostQty;
+            
+            // Update stock: add good returned plates back to available stock
+            const newAvailableQuantity = stockItem.available_quantity + goodReturnedQty;
+            const newOnRentQuantity = Math.max(0, stockItem.on_rent_quantity - returnedQty);
+            
+            const { error } = await supabase
+              .from('stock')
+              .update({
+                available_quantity: newAvailableQuantity,
+                on_rent_quantity: newOnRentQuantity,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', stockItem.id);
+
+            if (error) throw error;
+          }
+        }
+      }
+      
+      // Refresh stock data
+      await fetchStockData();
+    } catch (error) {
+      console.error('Error updating stock:', error);
+      throw error;
+    }
   }
 
   async function checkReturnChallanNumberExists(challanNumber: string) {
@@ -218,6 +269,7 @@ export function MobileReturnPage() {
         return;
       }
 
+      // Create return record
       const { data: returnRecord, error: returnError } = await supabase
         .from("returns")
         .insert([{
@@ -231,10 +283,13 @@ export function MobileReturnPage() {
 
       if (returnError) throw returnError;
 
+      // Create return line items
       const lineItems = validItems.map(size => ({
         return_id: returnRecord.id,
         plate_size: size,
         returned_quantity: quantities[size],
+        damaged_quantity: damagedQuantities[size] || 0,
+        lost_quantity: lostQuantities[size] || 0,
         damage_notes: notes[size]?.trim() || null
       }));
 
@@ -244,6 +299,10 @@ export function MobileReturnPage() {
 
       if (lineItemsError) throw lineItemsError;
 
+      // Update stock quantities
+      await updateStockAfterReturn();
+
+      // Prepare challan data for PDF
       const newChallanData: ChallanData = {
         type: "return",
         challan_number: returnRecord.return_challan_number,
@@ -258,6 +317,8 @@ export function MobileReturnPage() {
         plates: validItems.map(size => ({
           size,
           quantity: quantities[size],
+          damaged_quantity: damagedQuantities[size] || 0,
+          lost_quantity: lostQuantities[size] || 0,
           notes: notes[size] || "",
         })),
         total_quantity: validItems.reduce((sum, size) => sum + quantities[size], 0)
@@ -269,8 +330,11 @@ export function MobileReturnPage() {
       const jpgDataUrl = await generateJPGChallan(newChallanData);
       downloadJPGChallan(jpgDataUrl, `return-challan-${returnRecord.return_challan_number}`);
 
+      // Reset form
       setQuantities({});
       setNotes({});
+      setDamagedQuantities({});
+      setLostQuantities({});
       setReturnChallanNumber("");
       setSelectedClient(null);
       setChallanData(null);
@@ -287,13 +351,14 @@ export function MobileReturnPage() {
     }
   }
 
-  // Enhanced Client Selector Component with Green Theme
+  // Enhanced Client Selector Component
   function CompactClientSelector() {
     const [clients, setClients] = useState<Client[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
     const [loading, setLoading] = useState(true);
     const [showAddForm, setShowAddForm] = useState(false);
     const [newClientData, setNewClientData] = useState({
+      id: "",
       name: "",
       site: "",
       mobile_number: ""
@@ -319,6 +384,10 @@ export function MobileReturnPage() {
     }
 
     async function handleAddClient() {
+      if (!newClientData.id.trim()) {
+        alert("ગ્રાહક ID દાખલ કરો");
+        return;
+      }
       if (!newClientData.name.trim()) {
         alert("ગ્રાહકનું નામ દાખલ કરો");
         return;
@@ -334,12 +403,12 @@ export function MobileReturnPage() {
         if (error) throw error;
 
         setClients(prev => [...prev, data]);
-        setNewClientData({ name: "", site: "", mobile_number: "" });
+        setNewClientData({ id: "", name: "", site: "", mobile_number: "" });
         setShowAddForm(false);
         alert("નવો ગ્રાહક ઉમેરવામાં આવ્યો!");
       } catch (error) {
         console.error("Error adding client:", error);
-        alert("ગ્રાહક ઉમેરવામાં ભૂલ થઈ.");
+        alert("ગ્રાહક ઉમેરવામાં ભૂલ થઈ. કદાચ આ ID પહેલેથી અસ્તિત્વમાં છે.");
       }
     }
 
@@ -363,27 +432,59 @@ export function MobileReturnPage() {
           </div>
 
           <div className="space-y-2">
-            <input
-              type="text"
-              placeholder="ગ્રાહકનું નામ *"
-              value={newClientData.name}
-              onChange={e => setNewClientData(prev => ({ ...prev, name: e.target.value }))}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-200 focus:border-green-400"
-            />
-            <input
-              type="text"
-              placeholder="સાઇટ"
-              value={newClientData.site}
-              onChange={e => setNewClientData(prev => ({ ...prev, site: e.target.value }))}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-200 focus:border-green-400"
-            />
-            <input
-              type="tel"
-              placeholder="મોબાઇલ નંબર"
-              value={newClientData.mobile_number}
-              onChange={e => setNewClientData(prev => ({ ...prev, mobile_number: e.target.value }))}
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-200 focus:border-green-400"
-            />
+            <div>
+              <label className="block mb-1 text-xs font-medium text-blue-700">
+                ગ્રાહક ID *
+              </label>
+              <input
+                type="text"
+                placeholder="ગ્રાહક ID દાખલ કરો (જેમ કે: A001)"
+                value={newClientData.id}
+                onChange={e => setNewClientData(prev => ({ ...prev, id: e.target.value }))}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-200 focus:border-green-400"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 text-xs font-medium text-blue-700">
+                ગ્રાહકનું નામ *
+              </label>
+              <input
+                type="text"
+                placeholder="ગ્રાહકનું નામ દાખલ કરો"
+                value={newClientData.name}
+                onChange={e => setNewClientData(prev => ({ ...prev, name: e.target.value }))}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-200 focus:border-green-400"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 text-xs font-medium text-blue-700">
+                સાઇટ
+              </label>
+              <input
+                type="text"
+                placeholder="સાઇટનું નામ દાખલ કરો"
+                value={newClientData.site}
+                onChange={e => setNewClientData(prev => ({ ...prev, site: e.target.value }))}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-200 focus:border-green-400"
+              />
+            </div>
+
+            <div>
+              <label className="block mb-1 text-xs font-medium text-blue-700">
+                મોબાઇલ નંબર
+              </label>
+              <input
+                type="tel"
+                placeholder="મોબાઇલ નંબર દાખલ કરો"
+                value={newClientData.mobile_number}
+                onChange={e => setNewClientData(prev => ({ ...prev, mobile_number: e.target.value }))}
+                className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-green-200 focus:border-green-400"
+              />
+            </div>
           </div>
 
           <button
@@ -398,6 +499,20 @@ export function MobileReturnPage() {
 
     return (
       <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <User className="w-3 h-3 text-green-500" />
+            <h3 className="text-xs font-medium text-gray-900">ગ્રાહક પસંદ કરો</h3>
+          </div>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700"
+          >
+            <Plus className="w-3 h-3" />
+            નવો ઉમેરો
+          </button>
+        </div>
+
         <div className="relative">
           <Search className="absolute w-3 h-3 text-gray-400 -translate-y-1/2 left-2 top-1/2" />
           <input
@@ -408,7 +523,6 @@ export function MobileReturnPage() {
           />
         </div>
 
-        {/* ENLARGED CLIENT SEARCH WINDOW */}
         <div className="p-1 space-y-1 overflow-y-auto border border-gray-200 rounded max-h-80 bg-gray-50">
           {loading ? (
             <div className="py-8 text-center">
@@ -500,7 +614,7 @@ export function MobileReturnPage() {
           <p className="text-xs text-gray-600">પ્લેટ પરત કરો</p>
         </div>
 
-        {/* Enhanced Client Selection with Green Theme */}
+        {/* Enhanced Client Selection */}
         <div className="overflow-hidden bg-white border border-gray-100 rounded-lg shadow-sm">
           <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500">
             <h2 className="flex items-center gap-1 text-xs font-bold text-white">
@@ -546,7 +660,7 @@ export function MobileReturnPage() {
           </div>
         </div>
 
-        {/* Return Form - Now allows any quantity without restriction */}
+        {/* Return Form */}
         {selectedClient && !showClientSelector && (
           <form onSubmit={handleSubmit} className="overflow-hidden bg-white border border-gray-100 rounded-lg shadow-sm">
             <div className="p-2 bg-gradient-to-r from-green-500 to-emerald-500">
@@ -557,7 +671,7 @@ export function MobileReturnPage() {
             </div>
 
             <div className="p-2 space-y-2">
-              {/* Compact Form Header */}
+              {/* Form Header */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-medium text-gray-700 mb-0.5">
@@ -609,7 +723,7 @@ export function MobileReturnPage() {
                 </div>
               </div>
 
-              {/* Compact Table - Removed max limitation */}
+              {/* Enhanced Table with Damage/Loss tracking */}
               <div className="overflow-x-auto">
                 <table className="w-full overflow-hidden text-xs rounded">
                   <thead>
@@ -617,6 +731,8 @@ export function MobileReturnPage() {
                       <th className="px-1 py-1 font-medium text-left">સાઇઝ</th>
                       <th className="px-1 py-1 font-medium text-center">બાકી</th>
                       <th className="px-1 py-1 font-medium text-center">પરત</th>
+                      <th className="px-1 py-1 font-medium text-center">ખરાબ</th>
+                      <th className="px-1 py-1 font-medium text-center">ગુમ</th>
                       <th className="px-1 py-1 font-medium text-center">નોંધ</th>
                     </tr>
                   </thead>
@@ -624,10 +740,13 @@ export function MobileReturnPage() {
                     {PLATE_SIZES.map((size, index) => {
                       const outstandingCount = outstandingPlates[size] || 0;
                       const returnQuantity = quantities[size] || 0;
-                      const isExcess = returnQuantity > outstandingCount;
+                      const damagedQuantity = damagedQuantities[size] || 0;
+                      const lostQuantity = lostQuantities[size] || 0;
+                      const totalProcessed = returnQuantity + damagedQuantity + lostQuantity;
+                      const isExcess = totalProcessed > outstandingCount;
                       
                       return (
-                        <tr key={size} className={`${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}>
+                        <tr key={size} className={`${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'} ${isExcess && outstandingCount > 0 ? 'bg-orange-50' : ''}`}>
                           <td className="px-1 py-1 font-medium">{size}</td>
                           <td className="px-1 py-1 text-center">
                             <span className={`inline-flex items-center justify-center w-5 h-5 font-bold rounded ${
@@ -644,21 +763,35 @@ export function MobileReturnPage() {
                             <input
                               type="number"
                               min={0}
-                              // Removed max restriction - can return any amount
                               value={quantities[size] || ""}
                               onChange={e => handleQuantityChange(size, e.target.value)}
-                              className={`w-12 px-0.5 py-0.5 border rounded text-center ${
+                              className={`w-10 px-0.5 py-0.5 border rounded text-center ${
                                 isExcess && outstandingCount >= 0
                                   ? 'border-orange-300 bg-orange-50' 
                                   : 'border-gray-300'
                               }`}
                               placeholder="0"
                             />
-                            {isExcess && outstandingCount >= 0 && (
-                              <div className="text-xs text-orange-600 mt-0.5">
-                                +{returnQuantity - outstandingCount}
-                              </div>
-                            )}
+                          </td>
+                          <td className="px-1 py-1 text-center">
+                            <input
+                              type="number"
+                              min={0}
+                              value={damagedQuantities[size] || ""}
+                              onChange={e => handleDamagedQuantityChange(size, e.target.value)}
+                              className="w-10 px-0.5 py-0.5 border border-red-300 rounded text-center bg-red-50"
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className="px-1 py-1 text-center">
+                            <input
+                              type="number"
+                              min={0}
+                              value={lostQuantities[size] || ""}
+                              onChange={e => handleLostQuantityChange(size, e.target.value)}
+                              className="w-10 px-0.5 py-0.5 border border-gray-400 rounded text-center bg-gray-100"
+                              placeholder="0"
+                            />
                           </td>
                           <td className="px-1 py-1 text-center">
                             <input
@@ -676,17 +809,41 @@ export function MobileReturnPage() {
                 </table>
               </div>
 
-              {/* Compact Total */}
+              {/* Enhanced Total with breakdown */}
               <div className="p-2 bg-green-100 border border-green-200 rounded">
-                <div className="text-center">
-                  <span className="text-xs font-medium text-green-800">કુલ પ્લેટ્સ: </span>
-                  <span className="text-base font-bold text-green-700">
-                    {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
-                  </span>
+                <div className="text-center space-y-1">
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <span className="font-medium text-green-800">પરત: </span>
+                      <span className="text-sm font-bold text-green-700">
+                        {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-red-800">ખરાબ: </span>
+                      <span className="text-sm font-bold text-red-700">
+                        {Object.values(damagedQuantities).reduce((sum, qty) => sum + (qty || 0), 0)}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-medium text-gray-800">ગુમ: </span>
+                      <span className="text-sm font-bold text-gray-700">
+                        {Object.values(lostQuantities).reduce((sum, qty) => sum + (qty || 0), 0)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-1 border-t border-green-300">
+                    <span className="font-medium text-green-800">કુલ પ્રક્રિયા: </span>
+                    <span className="text-base font-bold text-green-700">
+                      {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0) +
+                       Object.values(damagedQuantities).reduce((sum, qty) => sum + (qty || 0), 0) +
+                       Object.values(lostQuantities).reduce((sum, qty) => sum + (qty || 0), 0)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Compact Submit Button */}
+              {/* Submit Button */}
               <button
                 type="submit"
                 disabled={loading}
