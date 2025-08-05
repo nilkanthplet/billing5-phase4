@@ -572,13 +572,6 @@ export function MobileReturnRental() {
             <User className="w-3 h-3 text-green-500" />
             <h3 className="text-xs font-medium text-gray-900">ગ્રાહક પસંદ કરો</h3>
           </div>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-1 text-xs font-medium text-green-600 hover:text-green-700"
-          >
-            <Plus className="w-3 h-3" />
-            નવો ઉમેરો
-          </button>
         </div>
 
         <div className="relative">
