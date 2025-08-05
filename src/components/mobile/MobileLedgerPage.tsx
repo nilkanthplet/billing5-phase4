@@ -110,7 +110,6 @@ export function MobileLedgerPage() {
         .order('created_at', { ascending: false });
 
       if (returnsError) throw returnsError;
-         driver_name,
 
       const ledgers: ClientLedger[] = clients.map(client => {
         const clientChallans = challans.filter(c => c.client_id === client.id);
@@ -497,6 +496,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     const item = transaction.items.find(i => i.plate_size === plateSize);
     return item?.notes || '';
   };
+  
   return (
     <div className="p-3">
       {/* Blue Themed Header */}
