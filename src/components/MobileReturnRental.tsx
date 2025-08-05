@@ -328,7 +328,9 @@ export function MobileReturnRental() {
         return;
       }
 
-      const validItems = PLATE_SIZES.filter(size => quantities[size] > 0);
+      const validItems = PLATE_SIZES.filter(size => 
+        quantities[size] > 0 || borrowedStockReturns[size] > 0
+      );
       if (validItems.length === 0) {
         alert("ઓછામાં ઓછી એક પ્લેટની માત્રા દાખલ કરો.");
         return;
@@ -368,6 +370,13 @@ export function MobileReturnRental() {
       // Update stock quantities
       await updateStockAfterReturn();
 
+      // Calculate totals
+      const regularTotal = validItems.reduce((sum, size) => sum + (quantities[size] || 0), 0);
+      const damagedTotal = validItems.reduce((sum, size) => sum + (damagedQuantities[size] || 0), 0);
+      const lostTotal = validItems.reduce((sum, size) => sum + (lostQuantities[size] || 0), 0);
+      // Calculate grand total (borrowed stock is tracked separately)
+      const grandTotal = regularTotal + damagedTotal + lostTotal;
+
       // Prepare challan data for PDF
       const newChallanData: ChallanData = {
         type: "return",
@@ -382,12 +391,13 @@ export function MobileReturnRental() {
         driver_name: driverName || undefined,
         plates: validItems.map(size => ({
           size,
-          quantity: quantities[size],
+          quantity: quantities[size] || 0,
+          borrowed_stock: borrowedStockReturns[size] || 0,
           damaged_quantity: damagedQuantities[size] || 0,
           lost_quantity: lostQuantities[size] || 0,
           notes: notes[size] || "",
         })),
-        total_quantity: validItems.reduce((sum, size) => sum + quantities[size], 0)
+        total_quantity: grandTotal
       };
 
       setChallanData(newChallanData);
@@ -986,7 +996,6 @@ export function MobileReturnRental() {
                     <span className="font-medium text-green-800">કુલ પ્રક્રિયા: </span>
                     <span className="text-base font-bold text-green-700">
                       {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0) +
-                       Object.values(borrowedStockReturns).reduce((sum, qty) => sum + (qty || 0), 0) +
                        Object.values(damagedQuantities).reduce((sum, qty) => sum + (qty || 0), 0) +
                        Object.values(lostQuantities).reduce((sum, qty) => sum + (qty || 0), 0)}
                     </span>
