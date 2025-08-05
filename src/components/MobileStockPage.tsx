@@ -129,6 +129,18 @@ function StockRow({ plateSize, stockData, borrowedStock, damageData, onUpdate, i
         </span>
       </td>
 
+      {/* Damage/Loss */}
+      <td className="px-1.5 py-2 text-center border-r border-blue-100">
+        <div className="flex flex-col items-center">
+          <span className="text-[12px] font-bold text-red-600">
+            {damageData.damaged + damageData.lost}
+          </span>
+          <div className="text-[11px] text-gray-500 leading-none">
+            ({damageData.damaged}+{damageData.lost})
+          </div>
+        </div>
+      </td>
+
       {/* Actions */}
       <td className="px-1.5 py-2 text-center">
         {isEditing ? (
@@ -354,7 +366,6 @@ export function MobileStockPage() {
                     plateSize={plateSize}
                     stockData={stockMap[plateSize]}
                     borrowedStock={borrowedStockMap[plateSize] || 0}
-                    damageData={damageStockMap[plateSize] || { damaged: 0, lost: 0 }}
                     onUpdate={handleUpdateStock}
                     isAdmin={user?.isAdmin || false}
                   />
