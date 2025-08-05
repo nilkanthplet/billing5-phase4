@@ -113,34 +113,20 @@ function StockRow({ plateSize, stockData, borrowedStock, onUpdate, isAdmin }: St
               {stockData?.available_quantity || 0}
             </span>
           </td>
-          <td className="px-2 py-1.5 text-center font-medium text-blue-600 text-xs">
-            {stockData?.on_rent_quantity || 0}
-          </td>
           <td className="px-2 py-1.5 text-center">
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-              {borrowedStock}
-            </span>
-          </td>
-          <td className="px-2 py-1.5 text-center">
-            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-              {borrowedStock}
-            </span>
-          </td>
-          <td className="px-2 py-1.5">
-            {isAdmin ? (
-              <button
-                onClick={() => setIsEditing(true)}
-                className="flex items-center gap-1 px-2 py-1 text-xs text-white transition-colors bg-blue-500 rounded hover:bg-blue-600"
-              >
-                <Edit3 className="w-3 h-3" />
-                એડિટ
-              </button>
-            ) : (
-              <div className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 bg-gray-200 rounded">
-                <Lock className="w-3 h-3" />
-                લૉક
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-xs font-medium text-blue-600">
+                {(stockData?.on_rent_quantity || 0) + borrowedStock}
+              </span>
+              <div className="text-[10px] text-gray-500">
+                ({stockData?.on_rent_quantity || 0} + {borrowedStock})
               </div>
-            )}
+            </div>
+          </td>
+          <td className="px-2 py-1.5 text-center">
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              {borrowedStock}
+            </span>
           </td>
         </>
       )}
@@ -355,10 +341,7 @@ export function MobileStockPage() {
                     ભાડે આપેલ
                   </th>
                   <th className="px-2 py-2 font-bold text-center text-blue-900">
-                    ઉધાર સ્ટોક
-                  </th>
-                  <th className="px-2 py-2 font-bold text-center text-blue-900">
-                    ક્રિયા
+                    બીજો ડેપો
                   </th>
                 </tr>
               </thead>
@@ -390,16 +373,20 @@ export function MobileStockPage() {
                       {totals.totalAvailable}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-sm font-bold text-center text-blue-800 border-r border-green-200 bg-blue-50">
-                    {totals.totalOnRent}
+                  <td className="px-2 py-2 text-center border-r border-green-200">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="text-sm font-bold text-blue-800">
+                        {totals.totalOnRent + totals.totalBorrowedStock}
+                      </span>
+                      <div className="text-xs text-gray-600">
+                        ({totals.totalOnRent} + {totals.totalBorrowedStock})
+                      </div>
+                    </div>
                   </td>
                   <td className="px-2 py-2 text-center border-r border-green-200">
                     <span className="px-2 py-1 text-sm font-bold text-blue-800 bg-blue-200 rounded-full">
                       {totals.totalBorrowedStock}
                     </span>
-                  </td>
-                  <td className="px-2 py-2 text-xs font-medium text-center text-green-700">
-                    -
                   </td>
                 </tr>
               </tbody>
