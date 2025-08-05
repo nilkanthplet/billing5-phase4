@@ -16,7 +16,13 @@ import {
   Search,
   Plus,
   ArrowLeft,
-  Lock
+  Lock,
+  Eye,
+  EyeOff,
+  Wallet,
+  CircleDollarSign,
+  ArrowDownToLine,
+  HardDriveUpload
 } from "lucide-react";
 import { generateJPGChallan, downloadJPGChallan } from "../utils/jpgChallanGenerator";
 import { ChallanData } from "./challans/types";
@@ -52,6 +58,7 @@ export function MobileReturnRental() {
   const [loading, setLoading] = useState(false);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [showClientSelector, setShowClientSelector] = useState(false);
+  const [showBorrowedStock, setShowBorrowedStock] = useState(true);
   const [outstandingPlates, setOutstandingPlates] = useState<OutstandingPlates>({});
   const [outstandingBorrowedStock, setOutstandingBorrowedStock] = useState<BorrowedStockData>({});
   const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
@@ -733,53 +740,80 @@ export function MobileReturnRental() {
 
             <div className="p-2 space-y-2">
               {/* Form Header */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                    જમા ચલણ નંબર *
-                  </label>
-                  <input
-                    type="text"
-                    value={returnChallanNumber}
-                    onChange={(e) => handleChallanNumberChange(e.target.value)}
-                    onFocus={(e) => e.target.select()}
-                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-green-200 focus:border-green-400"
-                    placeholder={suggestedChallanNumber}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                    તારીખ *
-                  </label>
-                  <input
-                    type="date"
-                    value={returnDate}
-                    onChange={(e) => setReturnDate(e.target.value)}
-                    required
-                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-green-200 focus:border-green-400"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                    ડ્રાઈવરનું નામ
-                  </label>
-                  <div className="relative">
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                      જમા ચલણ નંબર *
+                    </label>
                     <input
                       type="text"
-                      value={driverName}
-                      onChange={(e) => setDriverName(e.target.value)}
-                      list="driver-suggestions"
+                      value={returnChallanNumber}
+                      onChange={(e) => handleChallanNumberChange(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-green-200 focus:border-green-400"
-                      placeholder="ડ્રાઈવરનું નામ દાખલ કરો"
+                      placeholder={suggestedChallanNumber}
+                      required
                     />
-                    <datalist id="driver-suggestions">
-                      {previousDrivers.map((driver, index) => (
-                        <option key={index} value={driver} />
-                      ))}
-                    </datalist>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                      તારીખ *
+                    </label>
+                    <input
+                      type="date"
+                      value={returnDate}
+                      onChange={(e) => setReturnDate(e.target.value)}
+                      required
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-green-200 focus:border-green-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                      <span className="flex items-center gap-1">
+                        <User className="w-3 h-3 text-gray-500" />
+                        ડ્રાઈવરનું નામ
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={driverName}
+                        onChange={(e) => setDriverName(e.target.value)}
+                        list="driver-suggestions"
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-green-200 focus:border-green-400"
+                        placeholder="ડ્રાઈવરનું નામ દાખલ કરો"
+                      />
+                      <datalist id="driver-suggestions">
+                        {previousDrivers.map((driver, index) => (
+                          <option key={index} value={driver} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => setShowBorrowedStock(!showBorrowedStock)}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white transition-all rounded bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                    >
+                      {showBorrowedStock ? (
+                        <>
+                          <Eye className="w-3 h-3" />
+                          ઉધાર સ્ટોક છુપાવો
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3 h-3" />
+                          ઉધાર સ્ટોક બતાવો
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -790,10 +824,34 @@ export function MobileReturnRental() {
                   <thead>
                     <tr className="text-white bg-gradient-to-r from-green-500 to-emerald-500">
                       <th className="px-1 py-1 font-medium text-left">સાઇઝ</th>
-                      <th className="px-1 py-1 font-medium text-center">બાકી</th>
-                      <th className="px-1 py-1 font-medium text-center">પરત</th>
-                      <th className="px-1 py-1 font-medium text-center">ઉધાર બાકી</th>
-                      <th className="px-1 py-1 font-medium text-center">ઉધાર પરત</th>
+                      <th className="px-1 py-1 font-medium text-center">
+                        <span className="flex items-center justify-center gap-1">
+                          <HardDriveUpload className="w-3 h-3" />
+                          બાકી
+                        </span>
+                      </th>
+                      <th className="px-1 py-1 font-medium text-center">
+                        <span className="flex items-center justify-center gap-1">
+                          <ArrowDownToLine className="w-3 h-3" />
+                          પરત
+                        </span>
+                      </th>
+                      {showBorrowedStock && (
+                        <th className="px-1 py-1 font-medium text-center">
+                          <span className="flex items-center justify-center gap-1">
+                            <Wallet className="w-3 h-3" />
+                            ઉધાર બાકી
+                          </span>
+                        </th>
+                      )}
+                      {showBorrowedStock && (
+                        <th className="px-1 py-1 font-medium text-center">
+                          <span className="flex items-center justify-center gap-1">
+                            <CircleDollarSign className="w-3 h-3" />
+                            ઉધાર પરત
+                          </span>
+                        </th>
+                      )}
                       {/* <th className="px-1 py-1 font-medium text-center">ખરાબ</th> */}
                       {/* <th className="px-1 py-1 font-medium text-center">ગુમ</th> */}
                       <th className="px-1 py-1 font-medium text-center">નોંધ</th>
@@ -837,30 +895,33 @@ export function MobileReturnRental() {
                               placeholder="0"
                             />
                           </td>
-                          <td className="px-1 py-1 text-center">
-                            <span className={`inline-flex items-center justify-center w-5 h-5 font-bold rounded ${
-                              outstandingBorrowedCount > 0 
-                                ? 'text-purple-700 bg-purple-100' 
-                                : 'text-gray-700 bg-gray-100'
-                            }`}>
-                              {outstandingBorrowedCount}
-                            </span>
-                          </td>
-                          <td className="px-1 py-1 text-center">
-                            <input
-                              type="number"
-                              min={0}
-                              value={borrowedStockReturns[size] || ""}
-                              onChange={e => handleBorrowedStockReturnChange(size, e.target.value)}
-                              className={`w-10 px-0.5 py-0.5 border rounded text-center ${
-                                isBorrowedExcess && outstandingBorrowedCount >= 0
-                                  ? 'border-orange-300 bg-orange-50' 
-                                  : 'border-purple-300 bg-purple-50'
-                              }`}
-                              placeholder="0"
-                            />
-                          
-                          </td>
+                          {showBorrowedStock && (
+                            <>
+                              <td className="px-1 py-1 text-center">
+                                <span className={`inline-flex items-center justify-center w-5 h-5 font-bold rounded ${
+                                  outstandingBorrowedCount > 0 
+                                    ? 'text-purple-700 bg-purple-100' 
+                                    : 'text-gray-700 bg-gray-100'
+                                }`}>
+                                  {outstandingBorrowedCount}
+                                </span>
+                              </td>
+                              <td className="px-1 py-1 text-center">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={borrowedStockReturns[size] || ""}
+                                  onChange={e => handleBorrowedStockReturnChange(size, e.target.value)}
+                                  className={`w-10 px-0.5 py-0.5 border rounded text-center ${
+                                    isBorrowedExcess && outstandingBorrowedCount >= 0
+                                      ? 'border-orange-300 bg-orange-50' 
+                                      : 'border-purple-300 bg-purple-50'
+                                  }`}
+                                  placeholder="0"
+                                />
+                              </td>
+                            </>
+                          )}
                           {/* <td className="px-1 py-1 text-center">
                             <input
                               type="number"
@@ -907,12 +968,14 @@ export function MobileReturnRental() {
                         {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
                       </span>
                     </div>
-                    <div>
-                      <span className="font-medium text-purple-800">ઉધાર પરત: </span>
-                      <span className="text-sm font-bold text-purple-700">
-                        {Object.values(borrowedStockReturns).reduce((sum, qty) => sum + (qty || 0), 0)}
-                      </span>
-                    </div>
+                    {showBorrowedStock && (
+                      <div>
+                        <span className="font-medium text-purple-800">ઉધાર પરત: </span>
+                        <span className="text-sm font-bold text-purple-700">
+                          {Object.values(borrowedStockReturns).reduce((sum, qty) => sum + (qty || 0), 0)}
+                        </span>
+                      </div>
+                    )}
                     {/* <div>
                       <span className="font-medium text-red-800">ખરાબ: </span>
                       <span className="text-sm font-bold text-red-700">
