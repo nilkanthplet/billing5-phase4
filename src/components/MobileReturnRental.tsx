@@ -59,10 +59,10 @@ export function MobileReturnRental() {
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [showClientSelector, setShowClientSelector] = useState(false);
   const [showBorrowedStock, setShowBorrowedStock] = useState(true);
-  const [outstandingPlates, setOutstandingPlates] = useState<OutstandingPlates>({});
-  const [outstandingBorrowedStock, setOutstandingBorrowedStock] = useState<BorrowedStockData>({});
   const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
   const [stockData, setStockData] = useState<Stock[]>([]);
+  const [outstandingPlates, setOutstandingPlates] = useState<OutstandingPlates>({});
+  const [outstandingBorrowedStock, setOutstandingBorrowedStock] = useState<BorrowedStockData>({});
 
   useEffect(() => { 
     generateNextChallanNumber(); 
@@ -119,13 +119,11 @@ export function MobileReturnRental() {
     if (!selectedClient) return;
     
     try {
-      // Get all issued plates for this client1
       const { data: challans } = await supabase
         .from("challans")
         .select("challan_items (plate_size, borrowed_quantity)")
         .eq("client_id", selectedClient.id);
 
-      // Get all returned plates for this client
       const { data: returns } = await supabase
         .from("returns")
         .select("return_line_items (plate_size, returned_quantity)")
@@ -133,14 +131,12 @@ export function MobileReturnRental() {
 
       const outstanding: OutstandingPlates = {};
       
-      // Add issued quantities
       challans?.forEach((challan) => {
         challan.challan_items.forEach(item => {
           outstanding[item.plate_size] = (outstanding[item.plate_size] || 0) + item.borrowed_quantity;
         });
       });
 
-      // Subtract returned quantities
       returns?.forEach((returnRecord) => {
         returnRecord.return_line_items.forEach(item => {
           outstanding[item.plate_size] = (outstanding[item.plate_size] || 0) - item.returned_quantity;
@@ -158,14 +154,12 @@ export function MobileReturnRental() {
     if (!selectedClient) return;
     
     try {
-      // Get all borrowed stock for this client from active challans
       const { data: challans } = await supabase
         .from("challans")
         .select("challan_items (plate_size, borrowed_stock)")
         .eq("client_id", selectedClient.id)
         .eq("status", "active");
 
-      // Get all returned borrowed stock for this client
       const { data: returns } = await supabase
         .from("returns")
         .select("return_line_items (plate_size, returned_borrowed_stock)")
@@ -173,7 +167,6 @@ export function MobileReturnRental() {
 
       const outstandingBorrowed: BorrowedStockData = {};
       
-      // Add borrowed stock quantities
       challans?.forEach((challan) => {
         challan.challan_items.forEach(item => {
           if (item.borrowed_stock > 0) {
@@ -182,7 +175,6 @@ export function MobileReturnRental() {
         });
       });
 
-      // Subtract returned borrowed stock quantities
       returns?.forEach((returnRecord) => {
         returnRecord.return_line_items.forEach(item => {
           if (item.returned_borrowed_stock > 0) {
@@ -855,8 +847,6 @@ export function MobileReturnRental() {
                           </span>
                         </th>
                       )}
-                      {/* <th className="px-1 py-1 font-medium text-center">ખરાબ</th> */}
-                      {/* <th className="px-1 py-1 font-medium text-center">ગુમ</th> */}
                       <th className="px-1 py-1 font-medium text-center">નોંધ</th>
                     </tr>
                   </thead>

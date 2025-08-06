@@ -4,6 +4,7 @@ export interface PlateEntry {
   notes?: string;
   damaged_quantity?: number;
   lost_quantity?: number;
+  borrowed_stock?: number;
 }
 
 export interface Client {
