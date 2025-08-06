@@ -11,12 +11,14 @@ import {
   FileDown,
   Phone,
   MapPin,
-  BookOpen
+  BookOpen,
+  FileImage
 } from 'lucide-react';
 import { T } from '../../contexts/LanguageContext';
 import { PrintableChallan } from '../challans/PrintableChallan';
 import { generateJPGChallan, downloadJPGChallan } from '../../utils/jpgChallanGenerator';
 import { ChallanData } from '../challans/types';
+import { generateClientLedgerJPG, downloadClientLedgerJPG, ClientLedgerData } from '../../utils/clientLedgerGenerator';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type Challan = Database['public']['Tables']['challans']['Row'];
@@ -65,6 +67,7 @@ export function MobileLedgerPage() {
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
+  const [downloadingLedger, setDownloadingLedger] = useState<string | null>(null);
 
   useEffect(() => {
     fetchClientLedgers();
@@ -304,6 +307,34 @@ export function MobileLedgerPage() {
     }
   };
 
+  const handleDownloadClientLedger = async (ledger: ClientLedger) => {
+    try {
+      setDownloadingLedger(ledger.client.id);
+      
+      const ledgerData: ClientLedgerData = {
+        client: {
+          id: ledger.client.id,
+          name: ledger.client.name,
+          site: ledger.client.site || '',
+          mobile: ledger.client.mobile_number || ''
+        },
+        plate_balances: ledger.plate_balances,
+        total_outstanding: ledger.total_outstanding,
+        transactions: ledger.all_transactions,
+        generated_date: new Date().toISOString()
+      };
+
+      const jpgDataUrl = await generateClientLedgerJPG(ledgerData);
+      downloadClientLedgerJPG(jpgDataUrl, `ledger-${ledger.client.id}-${ledger.client.name.replace(/\s+/g, '-')}`);
+      
+    } catch (error) {
+      console.error('Error downloading client ledger:', error);
+      alert('લેજર ડાઉનલોડ કરવામાં ભૂલ. કૃપા કરીને ફરી પ્રયત્ન કરો.');
+    } finally {
+      setDownloadingLedger(null);
+    }
+  };
+
   const filteredLedgers = clientLedgers.filter(ledger =>
     ledger.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     ledger.client.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -432,6 +463,20 @@ export function MobileLedgerPage() {
                           : 'પૂર્ણ'
                         }
                       </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadClientLedger(ledger);
+                        }}
+                        disabled={downloadingLedger === ledger.client.id}
+                        className="flex items-center justify-center w-8 h-8 transition-all duration-200 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:shadow-xl disabled:opacity-50"
+                      >
+                        {downloadingLedger === ledger.client.id ? (
+                          <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
+                        ) : (
+                          <FileImage className="w-4 h-4" />
+                        )}
+                      </button>
                       <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
                         {expandedClient === ledger.client.id ? (
                           <ChevronUp className="w-4 h-4 text-blue-600" />
@@ -767,7 +812,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
 
         {/* Blue Themed Legend */}
         <div className="p-3 border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-          <div className="flex flex-wrap justify-center gap-4 text-xs">
+          <div className="flex flex-wrap justify-center gap-3 text-xs">
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 bg-yellow-400 rounded-full shadow-sm"></div>
               <span className="font-medium text-blue-700">ઉધાર (Issue)</span>
@@ -775,6 +820,10 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 bg-green-400 rounded-full shadow-sm"></div>
               <span className="font-medium text-blue-700">વસુલ (Return)</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <FileImage className="w-3 h-3 text-blue-600" />
+              <span className="font-medium text-blue-700">લેજર ડાઉનલોડ</span>
             </div>
           </div>
         </div>
