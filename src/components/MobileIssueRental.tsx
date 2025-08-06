@@ -49,7 +49,10 @@ export function MobileIssueRental() {
   const [loading, setLoading] = useState(false);
   const [stockValidation, setStockValidation] = useState<StockValidation[]>([]);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
+  const [showClientSelector, setShowClientSelector] = useState(false);
   const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
+  const [showBorrowedColumn, setShowBorrowedColumn] = useState(false);
+
   useEffect(() => { 
     fetchStockData(); 
     generateNextChallanNumber();
@@ -92,6 +95,7 @@ export function MobileIssueRental() {
 
   async function generateNextChallanNumber() {
     try {
+      // Get the most recent challan number (last one created)
       const { data, error } = await supabase
         .from("challans")
         .select("challan_number")
@@ -105,24 +109,29 @@ export function MobileIssueRental() {
       if (data && data.length > 0) {
         const lastChallanNumber = data[0].challan_number;
         
+        // Extract prefix and trailing number using regex
+        // This regex finds: (any characters)(trailing digits)
         const match = lastChallanNumber.match(/^(.*)(\d+)$/);
         
         if (match) {
-          const prefix = match[1];
-          const lastNumber = parseInt(match[2]);
+          const prefix = match[1]; // Characters before number (e.g., "KO", "ABC", or "")
+          const lastNumber = parseInt(match[2]); // The trailing number part
           const incrementedNumber = lastNumber + 1;
           
+          // Keep the same number of digits with leading zeros if needed
           const digitCount = match[2].length;
           const paddedNumber = incrementedNumber.toString().padStart(digitCount, '0');
           
           nextNumber = prefix + paddedNumber;
         } else {
+          // If no trailing number found, append "1" 
           nextNumber = lastChallanNumber + "1";
         }
       }
       
       setSuggestedChallanNumber(nextNumber);
       
+      // Auto-fill only if field is empty mk
       if (!challanNumber) setChallanNumber(nextNumber);
       
     } catch (error) {
@@ -655,7 +664,7 @@ export function MobileIssueRental() {
                 <div className="flex items-end">
                   <button
                     type="button"
-                    onClick={() => setShowBorrowedColumn(prev => !prev)}
+                    onClick={() => setShowBorrowedColumn(!showBorrowedColumn)}
                     className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded bg-blue-50 hover:bg-blue-100"
                   >
                     {showBorrowedColumn ? 'ઉધાર સ્ટોક છુપાવો' : 'ઉધાર સ્ટોક બતાવો'}
@@ -680,6 +689,9 @@ export function MobileIssueRental() {
                       <th className="px-1 py-1 font-medium text-left">સાઇઝ</th>
                       <th className="px-1 py-1 font-medium text-center">સ્ટોક</th>
                       <th className="px-1 py-1 font-medium text-center">ઇશ્યૂ</th>
+                      {showBorrowedColumn && (
+                        <th className="px-1 py-1 font-medium text-center">ઉધાર સ્ટોક</th>
+                      )}
                       <th className="px-1 py-1 font-medium text-center">નોંધ</th>
                     </tr>
                   </thead>
@@ -714,6 +726,18 @@ export function MobileIssueRental() {
                               </div>
                             )}
                           </td>
+                          {showBorrowedColumn && (
+                            <td className="px-1 py-1 text-center">
+                              <input
+                                type="number"
+                                min={0}
+                                value={borrowedStock[size] || ""}
+                                onChange={e => handleBorrowedStockChange(size, e.target.value)}
+                                className="w-10 px-0.5 py-0.5 border border-blue-300 rounded text-center bg-blue-50"
+                                placeholder="0"
+                              />
+                            </td>
+                          )}
                           <td className="px-1 py-1 text-center">
                             <input
                               type="text"
@@ -733,11 +757,21 @@ export function MobileIssueRental() {
               {/* Compact Total */}
               <div className="p-2 bg-red-100 border border-red-200 rounded">
                 <div className="text-center">
-                  <div className="text-xs">
-                    <span className="font-medium text-red-800">કુલ ઇશ્યૂ: </span>
-                    <span className="text-sm font-bold text-red-700">
-                      {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
-                    </span>
+                  <div className={`grid ${showBorrowedColumn ? 'grid-cols-2' : 'grid-cols-1'} gap-2 text-xs`}>
+                    <div>
+                      <span className="font-medium text-red-800">કુલ ઇશ્યૂ: </span>
+                      <span className="text-sm font-bold text-red-700">
+                        {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
+                      </span>
+                    </div>
+                    {showBorrowedColumn && (
+                      <div>
+                        <span className="font-medium text-blue-800">કુલ ઉધાર: </span>
+                        <span className="text-sm font-bold text-blue-700">
+                          {Object.values(borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0)}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

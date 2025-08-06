@@ -19,7 +19,7 @@ export default {
       },
       screens: {
         'xs': '375px',
-        'mobile': '414px',
+        'mobile': '414px', // 6.78-inch display width
         'sm': '640px',
         'md': '768px',
         'lg': '1024px',
