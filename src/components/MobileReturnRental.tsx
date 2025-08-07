@@ -58,7 +58,7 @@ export function MobileReturnRental() {
   const [loading, setLoading] = useState(false);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [showClientSelector, setShowClientSelector] = useState(false);
-  const [showBorrowedStock, setShowBorrowedStock] = useState(true);
+  const [showBorrowedStock, setShowBorrowedStock] = useState(false);
   const [outstandingPlates, setOutstandingPlates] = useState<OutstandingPlates>({});
   const [outstandingBorrowedStock, setOutstandingBorrowedStock] = useState<BorrowedStockData>({});
   const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
@@ -942,31 +942,47 @@ export function MobileReturnRental() {
               </div>
 
               {/* Enhanced Total with borrowed stock breakdown */}
-              <div className="p-2 bg-green-100 border border-green-200 rounded">
-                <div className="space-y-1 text-center">
-                  <div className="grid grid-cols-4 gap-2 text-xs">
-                    <div>
-                      <span className="font-medium text-green-800">પરત: </span>
-                      <span className="text-sm font-bold text-green-700">
+              <div className="p-3 space-y-2 bg-green-100 border border-green-200 rounded">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Own Stock Returns */}
+                  <div className="p-2 bg-white border border-green-200 rounded">
+                    <div className="text-xs text-center">
+                      <div className="font-medium text-green-800">પોતાની પ્લેટ પરત</div>
+                      <div className="mt-1 text-lg font-bold text-green-700">
                         {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
-                      </span>
-                    </div>
-                    {showBorrowedStock && (
-                      <div>
-                        <span className="font-medium text-purple-800">ઉધાર પરત: </span>
-                        <span className="text-sm font-bold text-purple-700">
-                          {Object.values(borrowedStockReturns).reduce((sum, qty) => sum + (qty || 0), 0)}
-                        </span>
                       </div>
-                    )}
+                    </div>
                   </div>
-                  <div className="pt-1 border-t border-green-300">
-                    <span className="font-medium text-green-800">કુલ પ્રક્રિયા: </span>
-                    <span className="text-base font-bold text-green-700">
+
+                  {/* Borrowed Stock Returns */}
+                  <div className={`p-2 bg-white border rounded transition-all ${
+                    showBorrowedStock ? 'border-purple-200' : 'border-gray-200'
+                  }`}>
+                    <div className="text-xs text-center">
+                      <div className={`font-medium ${
+                        showBorrowedStock ? 'text-purple-800' : 'text-gray-400'
+                      }`}>
+                        ઉધાર પ્લેટ પરત
+                      </div>
+                      <div className={`mt-1 text-lg font-bold ${
+                        showBorrowedStock ? 'text-purple-700' : 'text-gray-400'
+                      }`}>
+                        {showBorrowedStock 
+                          ? Object.values(borrowedStockReturns).reduce((sum, qty) => sum + (qty || 0), 0)
+                          : 0}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grand Total */}
+                <div className="p-2 rounded bg-gradient-to-r from-green-500 to-emerald-500">
+                  <div className="text-center">
+                    <div className="text-xs font-medium text-green-100">કુલ પરત પ્લેટ</div>
+                    <div className="text-xl font-bold text-white">
                       {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0) +
-                       Object.values(damagedQuantities).reduce((sum, qty) => sum + (qty || 0), 0) +
-                       Object.values(lostQuantities).reduce((sum, qty) => sum + (qty || 0), 0)}
-                    </span>
+                       (showBorrowedStock ? Object.values(borrowedStockReturns).reduce((sum, qty) => sum + (qty || 0), 0) : 0)}
+                    </div>
                   </div>
                 </div>
               </div>

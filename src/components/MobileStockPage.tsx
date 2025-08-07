@@ -12,7 +12,6 @@ interface BorrowedStockData {
 }
 
 const PLATE_SIZES = [
-  '2 X 3',
   '21 X 3', 
   '18 X 3',
   '15 X 3',
@@ -179,17 +178,6 @@ export function MobileStockPage() {
         <div className="flex items-center gap-2 p-3 mb-4 bg-white border border-blue-200 rounded-xl">
           <Package className="w-5 h-5 text-blue-600" />
           <h1 className="text-lg font-semibold text-blue-900">સ્ટોક ટેબલ</h1>
-        </div>
-
-        {/* Search */}
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="પ્લેટ સાઇઝ શોધો..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full p-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
         </div>
 
         {/* Stats Grid */}

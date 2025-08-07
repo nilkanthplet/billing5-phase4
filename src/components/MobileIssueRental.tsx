@@ -754,24 +754,48 @@ export function MobileIssueRental() {
                 </table>
               </div>
 
-              {/* Compact Total */}
-              <div className="p-2 bg-red-100 border border-red-200 rounded">
-                <div className="text-center">
-                  <div className={`grid ${showBorrowedColumn ? 'grid-cols-2' : 'grid-cols-1'} gap-2 text-xs`}>
-                    <div>
-                      <span className="font-medium text-red-800">કુલ ઇશ્યૂ: </span>
-                      <span className="text-sm font-bold text-red-700">
+              {/* Enhanced Total with borrowed stock breakdown */}
+              <div className="p-3 space-y-2 border border-red-200 rounded bg-red-50">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Own Stock Issues */}
+                  <div className="p-2 bg-white border border-red-200 rounded">
+                    <div className="text-xs text-center">
+                      <div className="font-medium text-red-800">પોતાની પ્લેટ ઇશ્યૂ</div>
+                      <div className="mt-1 text-lg font-bold text-red-700">
                         {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
-                      </span>
-                    </div>
-                    {showBorrowedColumn && (
-                      <div>
-                        <span className="font-medium text-blue-800">કુલ ઉધાર: </span>
-                        <span className="text-sm font-bold text-blue-700">
-                          {Object.values(borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0)}
-                        </span>
                       </div>
-                    )}
+                    </div>
+                  </div>
+
+                  {/* Borrowed Stock Issues */}
+                  <div className={`p-2 bg-white border rounded transition-all ${
+                    showBorrowedColumn ? 'border-blue-200' : 'border-gray-200'
+                  }`}>
+                    <div className="text-xs text-center">
+                      <div className={`font-medium ${
+                        showBorrowedColumn ? 'text-blue-800' : 'text-gray-400'
+                      }`}>
+                        ઉધાર પ્લેટ ઇશ્યૂ
+                      </div>
+                      <div className={`mt-1 text-lg font-bold ${
+                        showBorrowedColumn ? 'text-blue-700' : 'text-gray-400'
+                      }`}>
+                        {showBorrowedColumn 
+                          ? Object.values(borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0)
+                          : 0}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Grand Total */}
+                <div className="p-2 rounded bg-gradient-to-r from-red-500 to-orange-500">
+                  <div className="text-center">
+                    <div className="text-xs font-medium text-red-100">કુલ ઇશ્યૂ પ્લેટ</div>
+                    <div className="text-xl font-bold text-white">
+                      {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0) +
+                       (showBorrowedColumn ? Object.values(borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0) : 0)}
+                    </div>
                   </div>
                 </div>
               </div>
