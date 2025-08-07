@@ -10,6 +10,7 @@ import { PrintableChallan } from './challans/PrintableChallan';
 import { ChallanData } from './challans/types';
 import { useAuth } from '../hooks/useAuth';
 
+
 const PLATE_SIZES = [
   '2 X 3',
   '21 X 3',
@@ -22,12 +23,14 @@ const PLATE_SIZES = [
   '2 ફુટ'
 ];
 
+
 interface Client {
   id: string;
   name: string;
   site: string;
   mobile_number: string;
 }
+
 
 interface ChallanItem {
   id: number;
@@ -38,6 +41,7 @@ interface ChallanItem {
   status: string;
   borrowed_stock: number;
 }
+
 
 interface ReturnLineItem {
   id: number;
@@ -50,6 +54,7 @@ interface ReturnLineItem {
   returned_borrowed_stock: number;
 }
 
+
 interface UdharChallan {
   id: number;
   challan_number: string;
@@ -61,6 +66,7 @@ interface UdharChallan {
   driver_name?: string | null;
 }
 
+
 interface JamaChallan {
   id: number;
   return_challan_number: string;
@@ -70,6 +76,7 @@ interface JamaChallan {
   total_plates: number;
   driver_name?: string | null;
 }
+
 
 interface EditingChallan {
   id: number;
@@ -81,7 +88,9 @@ interface EditingChallan {
   note: string;
 }
 
+
 type TabType = 'udhar' | 'jama';
+
 
 export function ChallanManagementPage() {
   const { user } = useAuth();
@@ -98,10 +107,12 @@ export function ChallanManagementPage() {
   const [editLoading, setEditLoading] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
 
+
   useEffect(() => {
     fetchChallans();
     fetchClients();
   }, []);
+
 
   const fetchClients = async () => {
     try {
@@ -110,12 +121,14 @@ export function ChallanManagementPage() {
         .select('*')
         .order('name');
 
+
       if (error) throw error;
       setClients(data || []);
     } catch (error) {
       console.error('Error fetching clients:', error);
     }
   };
+
 
   const fetchChallans = async () => {
     try {
@@ -131,10 +144,12 @@ export function ChallanManagementPage() {
         `)
         .order('challan_date', { ascending: false });
 
+
       if (udharError) {
         console.error('Error fetching udhar challans:', udharError);
         throw udharError;
       }
+
 
       // Transform udhar data with proper typing
       const transformedUdharData = udharData?.map(challan => ({
@@ -151,6 +166,7 @@ export function ChallanManagementPage() {
         driver_name: challan.driver_name
       })) || [];
 
+
       // Fetch Jama Challans (Return Challans) with complete data
       const { data: jamaData, error: jamaError } = await supabase
         .from('returns')
@@ -161,10 +177,12 @@ export function ChallanManagementPage() {
         `)
         .order('return_date', { ascending: false });
 
+
       if (jamaError) {
         console.error('Error fetching jama challans:', jamaError);
         throw jamaError;
       }
+
 
       // Transform jama data
       const transformedJamaData = jamaData?.map(challan => ({
@@ -180,6 +198,7 @@ export function ChallanManagementPage() {
         driver_name: challan.driver_name
       })) || [];
 
+
       setUdharChallans(transformedUdharData);
       setJamaChallans(transformedJamaData);
     } catch (error) {
@@ -188,6 +207,7 @@ export function ChallanManagementPage() {
       setLoading(false);
     }
   };
+
 
   const handleEditChallan = async (challan: UdharChallan | JamaChallan, type: 'udhar' | 'jama') => {
     try {
@@ -202,12 +222,15 @@ export function ChallanManagementPage() {
           .eq('id', challan.id)
           .single();
 
+
         if (error) throw error;
+
 
         const plates: Record<string, number> = {};
         (data.challan_items as ChallanItem[]).forEach((item: ChallanItem) => {
           plates[item.plate_size] = item.borrowed_quantity;
         });
+
 
         setEditingChallan({
           id: challan.id,
@@ -228,12 +251,15 @@ export function ChallanManagementPage() {
           .eq('id', challan.id)
           .single();
 
+
         if (error) throw error;
+
 
         const plates: Record<string, number> = {};
         (data.return_line_items as ReturnLineItem[]).forEach((item: ReturnLineItem) => {
           plates[item.plate_size] = item.returned_quantity;
         });
+
 
         setEditingChallan({
           id: challan.id,
@@ -251,8 +277,10 @@ export function ChallanManagementPage() {
     }
   };
 
+
   const handleSaveEdit = async () => {
     if (!editingChallan) return;
+
 
     setEditLoading(true);
     try {
@@ -267,7 +295,9 @@ export function ChallanManagementPage() {
           })
           .eq('id', editingChallan.id);
 
+
         if (challanError) throw challanError;
+
 
         // Delete existing items
         const { error: deleteError } = await supabase
@@ -275,7 +305,9 @@ export function ChallanManagementPage() {
           .delete()
           .eq('challan_id', editingChallan.id);
 
+
         if (deleteError) throw deleteError;
+
 
         // Insert new items
         const newItems = Object.entries(editingChallan.plates)
@@ -286,10 +318,12 @@ export function ChallanManagementPage() {
             borrowed_quantity: quantity,
           }));
 
+
         if (newItems.length > 0) {
           const { error: insertError } = await supabase
             .from('challan_items')
             .insert(newItems);
+
 
           if (insertError) throw insertError;
         }
@@ -304,7 +338,9 @@ export function ChallanManagementPage() {
           })
           .eq('id', editingChallan.id);
 
+
         if (returnError) throw returnError;
+
 
         // Delete existing items
         const { error: deleteError } = await supabase
@@ -312,7 +348,9 @@ export function ChallanManagementPage() {
           .delete()
           .eq('return_id', editingChallan.id);
 
+
         if (deleteError) throw deleteError;
+
 
         // Insert new items
         const newItems = Object.entries(editingChallan.plates)
@@ -324,14 +362,17 @@ export function ChallanManagementPage() {
             damage_notes: editingChallan.note || null
           }));
 
+
         if (newItems.length > 0) {
           const { error: insertError } = await supabase
             .from('return_line_items')
             .insert(newItems);
 
+
           if (insertError) throw insertError;
         }
       }
+
 
       setEditingChallan(null);
       await fetchChallans();
@@ -344,11 +385,14 @@ export function ChallanManagementPage() {
     }
   };
 
+
   const handleDeleteChallan = async () => {
     if (!editingChallan) return;
 
+
     const confirmDelete = confirm(`શું તમે ખરેખર આ ${editingChallan.type} ચલણ ડિલીટ કરવા માંગો છો? આ ક્રિયા પૂર્વવત્ કરી શકાશે નહીં.`);
     if (!confirmDelete) return;
+
 
     setEditLoading(true);
     try {
@@ -358,6 +402,7 @@ export function ChallanManagementPage() {
           .delete()
           .eq('id', editingChallan.id);
 
+
         if (error) throw error;
       } else {
         const { error } = await supabase
@@ -365,8 +410,10 @@ export function ChallanManagementPage() {
           .delete()
           .eq('id', editingChallan.id);
 
+
         if (error) throw error;
       }
+
 
       setEditingChallan(null);
       await fetchChallans();
@@ -378,6 +425,7 @@ export function ChallanManagementPage() {
       setEditLoading(false);
     }
   };
+
 
   const handleDownload = async (challan: UdharChallan | JamaChallan, type: 'udhar' | 'jama') => {
     try {
@@ -412,14 +460,17 @@ export function ChallanManagementPage() {
         total_quantity: challan.total_plates
       };
 
+
       setChallanData(challanDataForPDF);
       
       // Wait for the component to render
       await new Promise(resolve => setTimeout(resolve, 500));
 
+
       // Generate and download the PDF
       const jpgDataUrl = await generateJPGChallan(challanDataForPDF);
       downloadJPGChallan(jpgDataUrl, `${type}-challan-${challanDataForPDF.challan_number}`);
+
 
       setChallanData(null);
     } catch (error) {
@@ -429,6 +480,7 @@ export function ChallanManagementPage() {
       setDownloading(null);
     }
   };
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -443,6 +495,7 @@ export function ChallanManagementPage() {
     }
   };
 
+
   const getStatusText = (status: string) => {
     const statusMap = {
       'active': { gu: 'સક્રિય', en: 'Active' },
@@ -453,11 +506,13 @@ export function ChallanManagementPage() {
     return statusMap[status as keyof typeof statusMap]?.[language] || status;
   };
 
+
   const filteredUdharChallans = udharChallans.filter(challan =>
     challan.challan_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
     challan.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     format(new Date(challan.challan_date), 'dd/MM/yyyy').includes(searchTerm)
   );
+
 
   const filteredJamaChallans = jamaChallans.filter(challan =>
     challan.return_challan_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -465,7 +520,9 @@ export function ChallanManagementPage() {
     format(new Date(challan.return_date), 'dd/MM/yyyy').includes(searchTerm)
   );
 
+
   const currentChallans = activeTab === 'udhar' ? filteredUdharChallans : filteredJamaChallans;
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
@@ -478,57 +535,61 @@ export function ChallanManagementPage() {
         )}
       </div>
 
-      <div className="p-4 space-y-4">
-        {/* Blue Themed Header */}
+
+      <div className="p-2 space-y-3">
+        {/* Compact Header */}
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-10 h-10 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
-            <BookOpen className="w-5 h-5 text-white" />
+          <div className="inline-flex items-center justify-center w-8 h-8 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
+            <BookOpen className="w-4 h-4 text-white" />
           </div>
-          <h1 className="mb-1 text-base font-bold text-gray-900">ચલણ બૂક</h1>
+          <h1 className="mb-1 text-sm font-bold text-gray-900">ચલણ બૂક</h1>
           <p className="text-xs text-blue-600">બધા ચલણોનું સંચાલન</p>
         </div>
 
-        {/* Blue Themed Tab Navigation */}
-        <div className="p-2 bg-white border-2 border-blue-100 shadow-lg rounded-xl">
-          <div className="grid grid-cols-2 gap-2">
+
+        {/* Compact Tab Navigation */}
+        <div className="p-1.5 bg-white border-2 border-blue-100 shadow-lg rounded-xl">
+          <div className="grid grid-cols-2 gap-1.5">
             <button
               onClick={() => setActiveTab('udhar')}
-              className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium text-sm transition-all duration-200 ${
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-medium text-xs transition-all duration-200 ${
                 activeTab === 'udhar'
                   ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transform scale-105'
                   : 'text-blue-600 hover:bg-blue-50'
               }`}
             >
-              <FileText className="w-4 h-4" />
+              <FileText className="w-3 h-3" />
               <span>ઉધાર ચલણ</span>
             </button>
             <button
               onClick={() => setActiveTab('jama')}
-              className={`flex items-center justify-center gap-2 py-2 px-3 rounded-lg font-medium text-sm transition-all duration-200 ${
+              className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg font-medium text-xs transition-all duration-200 ${
                 activeTab === 'jama'
                   ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg transform scale-105'
                   : 'text-blue-600 hover:bg-blue-50'
               }`}
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3 h-3" />
               <span>જમા ચલણ</span>
             </button>
           </div>
         </div>
 
-        {/* Blue Themed Search Bar */}
+
+        {/* Compact Search Bar */}
         <div className="relative">
-          <Search className="absolute w-4 h-4 text-blue-400 -translate-y-1/2 left-3 top-1/2" />
+          <Search className="absolute w-3 h-3 text-blue-400 -translate-y-1/2 left-2 top-1/2" />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="ચલણ નંબર, ગ્રાહક અથવા તારીખ શોધો..."
-            className="w-full py-2 pl-10 pr-3 text-sm transition-all duration-200 border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
+            className="w-full py-2 pl-8 pr-2 text-xs transition-all duration-200 border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
           />
         </div>
 
-        {/* Challans List */}
+
+        {/* Compact Challans List */}
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
@@ -536,29 +597,29 @@ export function ChallanManagementPage() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="space-y-3"
+            className="space-y-2"
           >
             {loading ? (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="p-3 bg-white border border-blue-100 shadow-sm rounded-xl animate-pulse">
-                    <div className="w-2/3 h-4 mb-2 bg-blue-200 rounded"></div>
-                    <div className="w-1/2 h-3 bg-blue-200 rounded"></div>
+                  <div key={i} className="p-2 bg-white border border-blue-100 shadow-sm rounded-xl animate-pulse">
+                    <div className="w-2/3 h-3 mb-1 bg-blue-200 rounded"></div>
+                    <div className="w-1/2 h-2 bg-blue-200 rounded"></div>
                   </div>
                 ))}
               </div>
             ) : currentChallans.length === 0 ? (
-              <div className="py-12 text-center bg-white border-2 border-blue-100 shadow-lg rounded-xl">
-                <div className={`w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center ${
+              <div className="py-8 text-center bg-white border-2 border-blue-100 shadow-lg rounded-xl">
+                <div className={`w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center ${
                   activeTab === 'udhar' ? 'bg-red-100' : 'bg-green-100'
                 }`}>
                   {activeTab === 'udhar' ? (
-                    <FileText className="w-8 h-8 text-red-600" />
+                    <FileText className="w-6 h-6 text-red-600" />
                   ) : (
-                    <RotateCcw className="w-8 h-8 text-green-600" />
+                    <RotateCcw className="w-6 h-6 text-green-600" />
                   )}
                 </div>
-                <p className="mb-1 font-semibold text-gray-700">
+                <p className="mb-1 text-sm font-semibold text-gray-700">
                   {activeTab === 'udhar' 
                     ? 'કોઈ ઉધાર ચલણ મળ્યું નથી' 
                     : 'કોઈ જમા ચલણ મળ્યું નથી'
@@ -579,26 +640,26 @@ export function ChallanManagementPage() {
                   animate={{ opacity: 1, y: 0 }}
                   className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200"
                 >
-                  {/* Challan Header */}
+                  {/* Compact Challan Header */}
                   <div 
-                    className="p-3 transition-colors cursor-pointer hover:bg-blue-25"
+                    className="p-2 transition-colors cursor-pointer hover:bg-blue-25"
                     onClick={() => setExpandedChallan(expandedChallan === challan.id ? null : challan.id)}
                   >
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500">
-                            <Hash className="w-3 h-3 text-white" />
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <div className="flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500">
+                            <Hash className="w-2.5 h-2.5 text-white" />
                           </div>
-                          <span className="text-sm font-semibold text-gray-900">
+                          <span className="text-xs font-semibold text-gray-900">
                             {activeTab === 'udhar' 
                               ? (challan as UdharChallan).challan_number
                               : (challan as JamaChallan).return_challan_number
                             }
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 mb-1 text-xs text-blue-600">
-                          <Calendar className="w-3 h-3" />
+                        <div className="flex items-center gap-1.5 mb-0.5 text-xs text-blue-600">
+                          <Calendar className="w-2.5 h-2.5" />
                           <span>
                             {format(new Date(
                               activeTab === 'udhar' 
@@ -607,48 +668,49 @@ export function ChallanManagementPage() {
                             ), 'dd/MM/yyyy')}
                           </span>
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-blue-600">
-                          <User className="w-3 h-3" />
+                        <div className="flex items-center gap-1.5 text-xs text-blue-600">
+                          <User className="w-2.5 h-2.5" />
                           <span>{challan.client.name}</span>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2">
+                      <div className="flex flex-col items-end gap-1.5">
                         {activeTab === 'udhar' && (
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor((challan as UdharChallan).status)}`}>
+                          <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor((challan as UdharChallan).status)}`}>
                             {getStatusText((challan as UdharChallan).status)}
                           </span>
                         )}
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full">
                             {challan.total_plates} પ્લેટ્સ
                           </span>
-                          <div className="flex items-center justify-center w-5 h-5 bg-blue-100 rounded-full">
+                          <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded-full">
                             {expandedChallan === challan.id ? (
-                              <ChevronUp className="w-3 h-3 text-blue-600" />
+                              <ChevronUp className="w-2.5 h-2.5 text-blue-600" />
                             ) : (
-                              <ChevronDown className="w-3 h-3 text-blue-600" />
+                              <ChevronDown className="w-2.5 h-2.5 text-blue-600" />
                             )}
                           </div>
                         </div>
                       </div>
                     </div>
 
-                    {/* Action Buttons */}
-                    <div className="flex gap-2">
+
+                    {/* Compact Action Buttons */}
+                    <div className="flex gap-1.5">
                       {user?.isAdmin ? (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             handleEditChallan(challan, activeTab);
                           }}
-                          className="flex items-center justify-center flex-1 gap-1 px-2 py-2 text-xs font-medium text-blue-700 transition-colors bg-blue-100 rounded-lg hover:bg-blue-200"
+                          className="flex items-center justify-center flex-1 gap-1 px-1.5 py-1.5 text-xs font-medium text-blue-700 transition-colors bg-blue-100 rounded-lg hover:bg-blue-200"
                         >
-                          <Edit className="w-3 h-3" />
+                          <Edit className="w-2.5 h-2.5" />
                           એડિટ
                         </button>
                       ) : (
-                        <div className="flex items-center justify-center flex-1 gap-1 px-2 py-2 text-xs font-medium text-gray-500 bg-gray-200 rounded-lg">
-                          <Lock className="w-3 h-3" />
+                        <div className="flex items-center justify-center flex-1 gap-1 px-1.5 py-1.5 text-xs font-medium text-gray-500 bg-gray-200 rounded-lg">
+                          <Lock className="w-2.5 h-2.5" />
                           લૉક
                         </div>
                       )}
@@ -657,9 +719,9 @@ export function ChallanManagementPage() {
                           e.stopPropagation();
                           setExpandedChallan(expandedChallan === challan.id ? null : challan.id);
                         }}
-                        className="flex items-center justify-center flex-1 gap-1 px-2 py-2 text-xs font-medium text-blue-700 transition-colors bg-blue-100 rounded-lg hover:bg-blue-200"
+                        className="flex items-center justify-center flex-1 gap-1 px-1.5 py-1.5 text-xs font-medium text-blue-700 transition-colors bg-blue-100 rounded-lg hover:bg-blue-200"
                       >
-                        <Eye className="w-3 h-3" />
+                        <Eye className="w-2.5 h-2.5" />
                         જુઓ
                       </button>
                       <button
@@ -668,19 +730,20 @@ export function ChallanManagementPage() {
                           handleDownload(challan, activeTab);
                         }}
                         disabled={downloading === challan.id}
-                        className={`flex-1 py-2 px-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
+                        className={`flex-1 py-1.5 px-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
                           activeTab === 'udhar'
                             ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white'
                             : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white'
                         } disabled:opacity-50`}
                       >
-                        <Download className="w-3 h-3" />
+                        <Download className="w-2.5 h-2.5" />
                         {downloading === challan.id ? 'લોડિંગ...' : 'ડાઉનલોડ'}
                       </button>
                     </div>
                   </div>
 
-                  {/* Expanded Details */}
+
+                  {/* Compact Expanded Details */}
                   <AnimatePresence>
                     {expandedChallan === challan.id && (
                       <motion.div
@@ -689,11 +752,11 @@ export function ChallanManagementPage() {
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50"
                       >
-                        <div className="p-3 space-y-3">
-                          {/* Client Details */}
-                          <div className="p-3 bg-white border border-blue-200 rounded-lg">
-                            <h4 className="mb-2 text-sm font-medium text-blue-900">ગ્રાહક વિગતો</h4>
-                            <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-2 space-y-2">
+                          {/* Compact Client Details */}
+                          <div className="p-2 bg-white border border-blue-200 rounded-lg">
+                            <h4 className="mb-1.5 text-xs font-medium text-blue-900">ગ્રાહક વિગતો</h4>
+                            <div className="grid grid-cols-2 gap-1.5 text-xs">
                               <div>
                                 <span className="text-blue-600">ID:</span>
                                 <span className="ml-1 font-medium text-gray-900">{challan.client.id}</span>
@@ -709,29 +772,30 @@ export function ChallanManagementPage() {
                             </div>
                           </div>
 
-                          {/* Plate Details */}
-                          <div className="p-3 bg-white border border-blue-200 rounded-lg">
-                            <h4 className="mb-2 text-sm font-medium text-blue-900">પ્લેટ વિગતો</h4>
-                            <div className="space-y-2">
+
+                          {/* Compact Plate Details */}
+                          <div className="p-2 bg-white border border-blue-200 rounded-lg">
+                            <h4 className="mb-1.5 text-xs font-medium text-blue-900">પ્લેટ વિગતો</h4>
+                            <div className="space-y-1.5">
                               {activeTab === 'udhar' 
                                 ? (challan as UdharChallan).challan_items.map((item, index) => (
-                                    <div key={index} className="flex items-center justify-between py-1 border-b border-blue-100 last:border-b-0">
+                                    <div key={index} className="flex items-center justify-between py-0.5 border-b border-blue-100 last:border-b-0">
                                       <span className="text-xs font-medium text-gray-900">{item.plate_size}</span>
                                       <div className="text-right">
-                                        <span className="text-sm font-bold text-red-600">{item.borrowed_quantity}</span>
+                                        <span className="text-xs font-bold text-red-600">{item.borrowed_quantity}</span>
                                         {item.partner_stock_notes && (
-                                          <div className="mt-1 text-xs text-blue-500">{item.partner_stock_notes}</div>
+                                          <div className="mt-0.5 text-xs text-blue-500">{item.partner_stock_notes}</div>
                                         )}
                                       </div>
                                     </div>
                                   ))
                                 : (challan as JamaChallan).return_line_items.map((item, index) => (
-                                    <div key={index} className="flex items-center justify-between py-1 border-b border-blue-100 last:border-b-0">
+                                    <div key={index} className="flex items-center justify-between py-0.5 border-b border-blue-100 last:border-b-0">
                                       <span className="text-xs font-medium text-gray-900">{item.plate_size}</span>
                                       <div className="text-right">
-                                        <span className="text-sm font-bold text-green-600">{item.returned_quantity}</span>
+                                        <span className="text-xs font-bold text-green-600">{item.returned_quantity}</span>
                                         {item.damage_notes && (
-                                          <div className="mt-1 text-xs text-blue-500">{item.damage_notes}</div>
+                                          <div className="mt-0.5 text-xs text-blue-500">{item.damage_notes}</div>
                                         )}
                                       </div>
                                     </div>
@@ -749,29 +813,31 @@ export function ChallanManagementPage() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Blue Themed Edit Modal */}
+
+        {/* Compact Edit Modal */}
         {editingChallan && user?.isAdmin && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-blue-900/30 backdrop-blur-sm">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-blue-900/30 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-4 border-blue-200">
-              <div className="p-4 text-white bg-gradient-to-r from-blue-600 to-indigo-600">
+              <div className="p-3 text-white bg-gradient-to-r from-blue-600 to-indigo-600">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold">
+                  <h2 className="text-sm font-semibold">
                     {editingChallan.type === 'udhar' ? 'ઉધાર' : 'જમા'} ચલણ એડિટ કરો
                   </h2>
                   <button
                     onClick={() => setEditingChallan(null)}
-                    className="p-2 transition-colors rounded-lg hover:bg-blue-500/20"
+                    className="p-1.5 transition-colors rounded-lg hover:bg-blue-500/20"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-4 space-y-4">
-                {/* Basic Details */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+              <div className="p-3 space-y-3">
+                {/* Compact Basic Details */}
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <div>
-                    <label className="block mb-1 text-sm font-medium text-blue-700">
+                    <label className="block mb-1 text-xs font-medium text-blue-700">
                       ચલણ નંબર
                     </label>
                     <input
@@ -781,11 +847,11 @@ export function ChallanManagementPage() {
                         ...editingChallan,
                         challan_number: e.target.value
                       })}
-                      className="w-full px-3 py-2 text-sm border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                      className="w-full px-2 py-1.5 text-xs border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 text-sm font-medium text-blue-700">
+                    <label className="block mb-1 text-xs font-medium text-blue-700">
                       તારીખ
                     </label>
                     <input
@@ -795,14 +861,15 @@ export function ChallanManagementPage() {
                         ...editingChallan,
                         date: e.target.value
                       })}
-                      className="w-full px-3 py-2 text-sm border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                      className="w-full px-2 py-1.5 text-xs border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
                     />
                   </div>
                 </div>
 
-                {/* Client Selection */}
+
+                {/* Compact Client Selection */}
                 <div>
-                  <label className="block mb-1 text-sm font-medium text-blue-700">
+                  <label className="block mb-1 text-xs font-medium text-blue-700">
                     ગ્રાહક
                   </label>
                   <select
@@ -811,7 +878,7 @@ export function ChallanManagementPage() {
                       ...editingChallan,
                       client_id: e.target.value
                     })}
-                    className="w-full px-3 py-2 text-sm border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                    className="w-full px-2 py-1.5 text-xs border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
                   >
                     {clients.map(client => (
                       <option key={client.id} value={client.id}>
@@ -821,15 +888,16 @@ export function ChallanManagementPage() {
                   </select>
                 </div>
 
-                {/* Plate Quantities */}
+
+                {/* Compact Plate Quantities */}
                 <div>
-                  <label className="block mb-2 text-sm font-medium text-blue-700">
+                  <label className="block mb-1.5 text-xs font-medium text-blue-700">
                     પ્લેટ માત્રા
                   </label>
-                  <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                  <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3">
                     {PLATE_SIZES.map(size => (
-                      <div key={size} className="p-2 border-2 border-blue-200 rounded-lg">
-                        <label className="block mb-1 text-xs font-medium text-blue-700">
+                      <div key={size} className="p-1.5 border-2 border-blue-200 rounded-lg">
+                        <label className="block mb-0.5 text-xs font-medium text-blue-700">
                           {size}
                         </label>
                         <input
@@ -843,7 +911,7 @@ export function ChallanManagementPage() {
                               [size]: parseInt(e.target.value) || 0
                             }
                           })}
-                          className="w-full px-1 py-1 text-xs text-center border border-blue-300 rounded focus:ring-1 focus:ring-blue-200 focus:border-blue-500"
+                          className="w-full px-1 py-0.5 text-xs text-center border border-blue-300 rounded focus:ring-1 focus:ring-blue-200 focus:border-blue-500"
                           placeholder="0"
                         />
                       </div>
@@ -851,9 +919,10 @@ export function ChallanManagementPage() {
                   </div>
                 </div>
 
-                {/* Note */}
+
+                {/* Compact Note */}
                 <div>
-                  <label className="block mb-1 text-sm font-medium text-blue-700">
+                  <label className="block mb-1 text-xs font-medium text-blue-700">
                     નોંધ
                   </label>
                   <textarea
@@ -862,38 +931,39 @@ export function ChallanManagementPage() {
                       ...editingChallan,
                       note: e.target.value
                     })}
-                    className="w-full px-3 py-2 text-sm border-2 border-blue-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                    rows={3}
+                    className="w-full px-2 py-1.5 text-xs border-2 border-blue-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                    rows={2}
                     placeholder="આ ચલણ માટે કોઈ નોંધ દાખલ કરો..."
                   />
                 </div>
 
-                {/* Action Buttons */}
-                <div className="flex flex-col gap-2 pt-4 border-t-2 border-blue-100 sm:flex-row">
+
+                {/* Compact Action Buttons */}
+                <div className="flex flex-col gap-1.5 pt-3 border-t-2 border-blue-100 sm:flex-row">
                   <button
                     onClick={handleSaveEdit}
                     disabled={editLoading}
-                    className="flex items-center justify-center flex-1 gap-2 px-3 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-50"
+                    className="flex items-center justify-center flex-1 gap-1.5 px-2 py-1.5 text-xs font-medium text-white transition-colors rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-50"
                   >
                     {editLoading ? (
-                      <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin" />
+                      <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
                     ) : (
-                      <Save className="w-4 h-4" />
+                      <Save className="w-3 h-3" />
                     )}
                     સેવ કરો
                   </button>
                   <button
                     onClick={handleDeleteChallan}
                     disabled={editLoading}
-                    className="flex items-center justify-center flex-1 gap-2 px-3 py-2 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:opacity-50"
+                    className="flex items-center justify-center flex-1 gap-1.5 px-2 py-1.5 text-xs font-medium text-white transition-colors rounded-lg bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:opacity-50"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3 h-3" />
                     ડિલીટ કરો
                   </button>
                   <button
                     onClick={() => setEditingChallan(null)}
                     disabled={editLoading}
-                    className="flex-1 px-3 py-2 text-sm font-medium text-white transition-colors bg-gray-500 rounded-lg hover:bg-gray-600 disabled:opacity-50"
+                    className="flex-1 px-2 py-1.5 text-xs font-medium text-white transition-colors bg-gray-500 rounded-lg hover:bg-gray-600 disabled:opacity-50"
                   >
                     રદ કરો
                   </button>
