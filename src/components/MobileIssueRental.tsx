@@ -637,8 +637,8 @@ export function MobileIssueRental() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <div className="flex-1">
+              <div className="grid grid-cols-5 gap-2">
+                <div className="col-span-3">
                   <label className="block text-xs font-medium text-gray-700 mb-0.5">
                     <span className="flex items-center gap-1">
                       <User className="w-3 h-3 text-gray-500" />
@@ -661,13 +661,14 @@ export function MobileIssueRental() {
                     </datalist>
                   </div>
                 </div>
-                <div className="flex items-end">
+                <div className="col-span-2">
+                  <label className="block text-xs font-medium text-transparent mb-0.5">.</label>
                   <button
                     type="button"
                     onClick={() => setShowBorrowedColumn(!showBorrowedColumn)}
-                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded bg-blue-50 hover:bg-blue-100"
+                    className="flex items-center justify-center w-full gap-1 px-2 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded bg-blue-50 hover:bg-blue-100"
                   >
-                    {showBorrowedColumn ? 'ઉધાર સ્ટોક છુપાવો' : 'ઉધાર સ્ટોક બતાવો'}
+                    {showBorrowedColumn ? 'બિજો ડેપો છુપાવો' : 'બિજો ડેપો બતાવો'}
                   </button>
                 </div>
               </div>
@@ -690,7 +691,7 @@ export function MobileIssueRental() {
                       <th className="px-1 py-1 font-medium text-center">સ્ટોક</th>
                       <th className="px-1 py-1 font-medium text-center">ઇશ્યૂ</th>
                       {showBorrowedColumn && (
-                        <th className="px-1 py-1 font-medium text-center">ઉધાર સ્ટોક</th>
+                        <th className="px-1 py-1 font-medium text-center">બિજો ડેપો</th>
                       )}
                       <th className="px-1 py-1 font-medium text-center">નોંધ</th>
                     </tr>
@@ -775,7 +776,7 @@ export function MobileIssueRental() {
                       <div className={`font-medium ${
                         showBorrowedColumn ? 'text-blue-800' : 'text-gray-400'
                       }`}>
-                        ઉધાર પ્લેટ ઇશ્યૂ
+                         બિજો ડેપો પ્લેટ ઇશ્યૂ
                       </div>
                       <div className={`mt-1 text-lg font-bold ${
                         showBorrowedColumn ? 'text-blue-700' : 'text-gray-400'

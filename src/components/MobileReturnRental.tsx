@@ -843,7 +843,7 @@ export function MobileReturnRental() {
                         <th className="px-1 py-1 font-medium text-center">
                           <span className="flex items-center justify-center gap-1">
                             <Wallet className="w-3 h-3" />
-                            ઉધાર બાકી
+                            બાકી
                           </span>
                         </th>
                       )}
@@ -851,8 +851,7 @@ export function MobileReturnRental() {
                         <th className="px-1 py-1 font-medium text-center">
                           <span className="flex items-center justify-center gap-1">
                             <CircleDollarSign className="w-3 h-3" />
-                            ઉધાર પરત
-                          </span>
+                            બિજો ડેપો                          </span>
                         </th>
                       )}
                       {/* <th className="px-1 py-1 font-medium text-center">ખરાબ</th> */}
@@ -962,7 +961,7 @@ export function MobileReturnRental() {
                       <div className={`font-medium ${
                         showBorrowedStock ? 'text-purple-800' : 'text-gray-400'
                       }`}>
-                        ઉધાર પ્લેટ પરત
+                        બિજો ડેપો પ્લેટ પરત
                       </div>
                       <div className={`mt-1 text-lg font-bold ${
                         showBorrowedStock ? 'text-purple-700' : 'text-gray-400'

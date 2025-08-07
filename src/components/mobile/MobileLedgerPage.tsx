@@ -12,20 +12,13 @@ import {
   Phone,
   MapPin,
   BookOpen,
-  FileImage,
-  Calendar,
-  TrendingUp,
-  AlertCircle,
-  CheckCircle2,
-  Clock,
-  Users
+  FileImage
 } from 'lucide-react';
 import { T } from '../../contexts/LanguageContext';
 import { PrintableChallan } from '../challans/PrintableChallan';
 import { generateJPGChallan, downloadJPGChallan } from '../../utils/jpgChallanGenerator';
 import { ChallanData } from '../challans/types';
 import { generateClientLedgerJPG, downloadClientLedgerJPG, ClientLedgerData } from '../../utils/clientLedgerGenerator';
-import { motion, AnimatePresence } from 'framer-motion';
 
 type Client = Database['public']['Tables']['clients']['Row'];
 type Challan = Database['public']['Tables']['challans']['Row'];
@@ -128,7 +121,7 @@ export function MobileLedgerPage() {
 
         const plateBalanceMap = new Map<string, PlateBalance>();
         
-        // Initialize ALL plate sizes
+        // Initialize ALL plate sizes (even if no activity)
         PLATE_SIZES.forEach(size => {
           plateBalanceMap.set(size, {
             plate_size: size,
@@ -156,6 +149,7 @@ export function MobileLedgerPage() {
           });
         });
 
+        // Always return ALL plate sizes in correct order
         const plate_balances = PLATE_SIZES.map(size => {
           const balance = plateBalanceMap.get(size)!;
           return {
@@ -176,8 +170,8 @@ export function MobileLedgerPage() {
             items: challan.challan_items.map(item => ({
               plate_size: item.plate_size,
               quantity: item.borrowed_quantity,
-              borrowed_stock: item.borrowed_stock || 0,
-              notes: item.partner_stock_notes || ''
+             borrowed_stock: item.borrowed_stock || 0,
+             notes: item.partner_stock_notes || ''
             })),
             driver_name: challan.driver_name
           })),
@@ -347,35 +341,14 @@ export function MobileLedgerPage() {
     ledger.client.site.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Calculate summary stats
-  const summaryStats = {
-    totalClients: clientLedgers.length,
-    activeClients: clientLedgers.filter(l => l.total_outstanding > 0).length,
-    totalOutstanding: clientLedgers.reduce((sum, l) => l.total_outstanding, 0),
-    clearedClients: clientLedgers.filter(l => l.total_outstanding === 0 && l.has_activity).length
-  };
-
   if (loading) {
     return (
       <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
-        <div className="p-3 space-y-4">
+        <div className="p-3 space-y-3">
           <div className="pt-2 text-center">
             <div className="w-32 h-5 mx-auto mb-1 bg-blue-200 rounded animate-pulse"></div>
             <div className="w-40 h-3 mx-auto bg-blue-200 rounded animate-pulse"></div>
           </div>
-          
-          {/* Loading Stats */}
-          <div className="grid grid-cols-2 gap-2">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="p-3 bg-white border border-blue-100 rounded-lg shadow-sm animate-pulse">
-                <div className="w-8 h-8 mx-auto mb-2 bg-blue-200 rounded-full"></div>
-                <div className="w-12 h-4 mx-auto mb-1 bg-blue-200 rounded"></div>
-                <div className="w-16 h-3 mx-auto bg-blue-200 rounded"></div>
-              </div>
-            ))}
-          </div>
-          
-          {/* Loading Client Cards */}
           {[...Array(5)].map((_, i) => (
             <div key={i} className="p-3 bg-white border border-blue-100 rounded-lg shadow-sm animate-pulse">
               <div className="w-2/3 h-4 mb-2 bg-blue-200 rounded"></div>
@@ -399,243 +372,147 @@ export function MobileLedgerPage() {
       </div>
 
       <div className="p-3 space-y-4">
-        {/* Enhanced Header */}
+        {/* Blue Themed Header */}
         <div className="pt-2 text-center">
-          <div className="inline-flex items-center justify-center w-12 h-12 mb-3 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
-            <BookOpen className="w-6 h-6 text-white" />
+          <div className="inline-flex items-center justify-center w-10 h-10 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
+            <BookOpen className="w-5 h-5 text-white" />
           </div>
-          <h1 className="mb-1 text-lg font-bold text-gray-900">ખાતાવહી</h1>
-          <p className="text-sm text-blue-600">ગ્રાહક ભાડા ઇતિહાસ અને બેલેન્સ</p>
+          <h1 className="mb-1 text-base font-bold text-gray-900">ખાતાવહી</h1>
+          <p className="text-xs text-blue-600">ગ્રાહક ભાડા ઇતિહાસ</p>
         </div>
 
-        {/* Enhanced Summary Stats */}
-        <div className="grid grid-cols-2 gap-3">
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="p-3 text-center bg-white border-2 border-blue-200 rounded-xl shadow-lg"
+        {/* Blue Themed Backup Button */}
+        <div className="flex justify-center">
+          <button
+            onClick={handleBackupData}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl hover:scale-105"
           >
-            <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500">
-              <Users className="w-4 h-4 text-white" />
-            </div>
-            <div className="text-xl font-bold text-blue-700">{summaryStats.totalClients}</div>
-            <div className="text-xs font-medium text-blue-600">કુલ ગ્રાહકો</div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 }}
-            className="p-3 text-center bg-white border-2 border-orange-200 rounded-xl shadow-lg"
-          >
-            <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-gradient-to-r from-orange-500 to-red-500">
-              <Clock className="w-4 h-4 text-white" />
-            </div>
-            <div className="text-xl font-bold text-orange-700">{summaryStats.activeClients}</div>
-            <div className="text-xs font-medium text-orange-600">સક્રિય ગ્રાહકો</div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="p-3 text-center bg-white border-2 border-red-200 rounded-xl shadow-lg"
-          >
-            <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-gradient-to-r from-red-500 to-pink-500">
-              <AlertCircle className="w-4 h-4 text-white" />
-            </div>
-            <div className="text-xl font-bold text-red-700">{summaryStats.totalOutstanding}</div>
-            <div className="text-xs font-medium text-red-600">કુલ બાકી</div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3 }}
-            className="p-3 text-center bg-white border-2 border-green-200 rounded-xl shadow-lg"
-          >
-            <div className="flex items-center justify-center w-8 h-8 mx-auto mb-2 rounded-full bg-gradient-to-r from-green-500 to-emerald-500">
-              <CheckCircle2 className="w-4 h-4 text-white" />
-            </div>
-            <div className="text-xl font-bold text-green-700">{summaryStats.clearedClients}</div>
-            <div className="text-xs font-medium text-green-600">ક્લિયર ગ્રાહકો</div>
-          </motion.div>
+            <FileDown className="w-4 h-4" />
+            બેકઅપ
+          </button>
         </div>
 
-        {/* Enhanced Controls */}
-        <div className="space-y-3">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute w-4 h-4 text-blue-400 transform -translate-y-1/2 left-3 top-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full py-3 pl-10 pr-3 text-sm transition-all duration-200 bg-white border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 shadow-sm"
-              placeholder="ગ્રાહક શોધો..."
-            />
-          </div>
-
-          {/* Backup Button */}
-          <div className="flex justify-center">
-            <button
-              onClick={handleBackupData}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl hover:scale-105"
-            >
-              <FileDown className="w-4 h-4" />
-              CSV બેકઅપ
-            </button>
-          </div>
+        {/* Blue Themed Search Bar */}
+        <div className="relative">
+          <Search className="absolute w-4 h-4 text-blue-400 transform -translate-y-1/2 left-3 top-1/2" />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full py-2 pl-10 pr-3 text-sm transition-all duration-200 bg-white border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
+            placeholder="ગ્રાહક શોધો..."
+          />
         </div>
 
-        {/* Enhanced Client Cards */}
-        <div className="space-y-3">
-          <AnimatePresence>
-            {filteredLedgers.map((ledger, index) => {
-              const issuedBorrowed = ledger.all_transactions
-                .filter(t => t.type === 'udhar')
-                .reduce((sum, t) => {
-                  return sum + t.items.reduce((subSum, item) => subSum + (item.borrowed_stock || 0), 0);
-                }, 0);
-              
-              const returnedBorrowed = ledger.all_transactions
-                .filter(t => t.type === 'jama')
-                .reduce((sum, t) => {
-                  return sum + t.items.reduce((subSum, item) => subSum + (item.returned_borrowed_stock || 0), 0);
-                }, 0);
-              
-              const netBorrowedStock = issuedBorrowed - returnedBorrowed;
-              const totalOutstandingWithBorrowed = ledger.total_outstanding + netBorrowedStock;
-              
-              return (
-                <motion.div
-                  key={ledger.client.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ delay: index * 0.05 }}
-                  className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200"
+        {/* Blue Themed Client Cards */}
+        <div className="space-y-2">
+          {filteredLedgers.map((ledger) => {
+            // FIXED: Calculate accurate total outstanding
+            const issuedBorrowed = ledger.all_transactions
+              .filter(t => t.type === 'udhar')
+              .reduce((sum, t) => {
+                return sum + t.items.reduce((subSum, item) => subSum + (item.borrowed_stock || 0), 0);
+              }, 0);
+            
+            const returnedBorrowed = ledger.all_transactions
+              .filter(t => t.type === 'jama')
+              .reduce((sum, t) => {
+                return sum + t.items.reduce((subSum, item) => subSum + (item.returned_borrowed_stock || 0), 0);
+              }, 0);
+            
+            const netBorrowedStock = issuedBorrowed - returnedBorrowed;
+            const totalOutstandingWithBorrowed = ledger.total_outstanding + netBorrowedStock;
+            
+            return (
+              <div key={ledger.client.id} className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200">
+                {/* Client Header - Shows કુલ grand total in બાકી */}
+                <div 
+                  className="p-3 transition-colors cursor-pointer hover:bg-blue-50"
+                  onClick={() => toggleExpanded(ledger.client.id)}
                 >
-                  {/* Enhanced Client Header */}
-                  <div 
-                    className="p-4 transition-colors cursor-pointer hover:bg-blue-50"
-                    onClick={() => toggleExpanded(ledger.client.id)}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2">
-                          <div className="flex items-center justify-center w-8 h-8 text-sm font-bold text-white rounded-full shadow-sm bg-gradient-to-r from-blue-500 to-indigo-500">
-                            {ledger.client.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <h3 className="text-sm font-bold text-gray-900 truncate">
-                              {ledger.client.name}
-                            </h3>
-                            <p className="text-xs text-blue-600 font-medium">ID: {ledger.client.id}</p>
-                          </div>
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full shadow-sm bg-gradient-to-r from-blue-500 to-indigo-500">
+                          {ledger.client.name.charAt(0).toUpperCase()}
                         </div>
-                        
-                        <div className="flex items-center gap-4 ml-11">
-                          <div className="flex items-center gap-1 text-xs text-blue-600">
-                            <MapPin className="w-3 h-3" />
-                            <span className="truncate max-w-[120px]">{ledger.client.site}</span>
-                          </div>
-                          <div className="flex items-center gap-1 text-xs text-blue-600">
-                            <Phone className="w-3 h-3" />
-                            <span>{ledger.client.mobile_number}</span>
-                          </div>
-                        </div>
+                        <h3 className="text-sm font-semibold text-gray-900 truncate">
+                          {ledger.client.name} ({ledger.client.id})
+                        </h3>
                       </div>
-                      
-                      <div className="flex items-center gap-2 ml-3">
-                        {/* Enhanced Status Badge */}
-                        <div className="text-center">
-                          <span className={`px-3 py-1.5 rounded-full text-xs font-bold shadow-sm border-2 ${
-                            totalOutstandingWithBorrowed > 0 
-                              ? 'bg-gradient-to-r from-red-500 to-red-600 text-white border-red-300' 
-                              : ledger.has_activity
-                                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white border-green-300'
-                                : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white border-gray-300'
-                          }`}>
-                            {totalOutstandingWithBorrowed > 0 
-                              ? `${totalOutstandingWithBorrowed} બાકી` 
-                              : ledger.has_activity ? 'ક્લિયર' : 'નિષ્ક્રિય'
-                            }
-                          </span>
-                          {ledger.has_activity && (
-                            <p className="mt-1 text-xs text-gray-500">
-                              {ledger.all_transactions.length} ચલણ
-                            </p>
-                          )}
+                      <div className="flex items-center gap-3 ml-8">
+                        <div className="flex items-center gap-1 text-xs text-blue-600">
+                          <MapPin className="w-3 h-3" />
+                          <span className="truncate">{ledger.client.site}</span>
                         </div>
-                        
-                        {/* Download Button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownloadClientLedger(ledger);
-                          }}
-                          disabled={downloadingLedger === ledger.client.id}
-                          className="flex items-center justify-center w-10 h-10 transition-all duration-200 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:shadow-xl disabled:opacity-50 transform hover:scale-105"
-                        >
-                          {downloadingLedger === ledger.client.id ? (
-                            <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin" />
-                          ) : (
-                            <FileImage className="w-4 h-4" />
-                          )}
-                        </button>
-                        
-                        {/* Expand Icon */}
-                        <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
-                          {expandedClient === ledger.client.id ? (
-                            <ChevronUp className="w-4 h-4 text-blue-600" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4 text-blue-600" />
-                          )}
+                        <div className="flex items-center gap-1 text-xs text-blue-600">
+                          <Phone className="w-3 h-3" />
+                          <span>{ledger.client.mobile_number}</span>
                         </div>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Enhanced Expanded Details */}
-                  <AnimatePresence>
-                    {expandedClient === ledger.client.id && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.3 }}
-                        className="overflow-hidden border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50"
+                    
+                    <div className="flex items-center gap-2 ml-2">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${
+                        totalOutstandingWithBorrowed > 0 
+                          ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
+                          : 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                      }`}>
+                        {totalOutstandingWithBorrowed > 0 
+                          ? `${totalOutstandingWithBorrowed} બાકી` 
+                          : 'પૂર્ણ'
+                        }
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadClientLedger(ledger);
+                        }}
+                        disabled={downloadingLedger === ledger.client.id}
+                        className="flex items-center justify-center w-8 h-8 text-white transition-all duration-200 rounded-full shadow-lg bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 hover:shadow-xl disabled:opacity-50"
                       >
-                        {!ledger.has_activity ? (
-                          <div className="p-6 text-center text-gray-500">
-                            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
-                              <TrendingUp className="w-6 h-6 text-blue-400" />
-                            </div>
-                            <p className="text-sm font-medium text-gray-700">કોઈ પ્રવૃત્તિ નથી</p>
-                            <p className="text-xs text-blue-600 mt-1">આ ગ્રાહકે હજુ સુધી કોઈ ભાડો લીધો નથી</p>
-                          </div>
+                        {downloadingLedger === ledger.client.id ? (
+                          <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
                         ) : (
-                          <EnhancedActivityTable 
-                            ledger={ledger} 
-                            onDownloadChallan={handleDownloadChallan}
-                            downloading={downloading}
-                          />
+                          <FileImage className="w-4 h-4" />
                         )}
-                      </motion.div>
+                      </button>
+                      <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
+                        {expandedClient === ledger.client.id ? (
+                          <ChevronUp className="w-4 h-4 text-blue-600" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-blue-600" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Blue Themed Expanded Details */}
+                {expandedClient === ledger.client.id && (
+                  <div className="border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                    {!ledger.has_activity ? (
+                      <div className="p-6 text-center text-gray-500">
+                        <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
+                          <Package className="w-6 h-6 text-blue-400" />
+                        </div>
+                        <p className="text-sm font-medium">કોઈ પ્રવૃત્તિ નથી</p>
+                      </div>
+                    ) : (
+                      <AllSizesActivityTable 
+                        ledger={ledger} 
+                        onDownloadChallan={handleDownloadChallan}
+                        downloading={downloading}
+                      />
                     )}
-                  </AnimatePresence>
-                </motion.div>
-              );
-            })}
-          </AnimatePresence>
+                  </div>
+                )}
+              </div>
+            );
+          })}
 
           {filteredLedgers.length === 0 && !loading && (
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="py-8 text-center bg-white border-2 border-blue-100 shadow-lg rounded-xl"
-            >
+            <div className="py-8 text-center bg-white border-2 border-blue-100 shadow-lg rounded-xl">
               <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
                 <User className="w-8 h-8 text-blue-400" />
               </div>
@@ -645,15 +522,7 @@ export function MobileLedgerPage() {
               <p className="text-xs text-blue-600">
                 {searchTerm ? 'શોધ શબ્દ બદલીને પ્રયત્ન કરો' : 'નવા ગ્રાહકો ઉમેરો'}
               </p>
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="px-4 py-2 mt-3 text-xs font-medium text-white transition-colors rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600"
-                >
-                  શોધ સાફ કરો
-                </button>
-              )}
-            </motion.div>
+            </div>
           )}
         </div>
       </div>
@@ -661,23 +530,15 @@ export function MobileLedgerPage() {
   );
 }
 
-// Enhanced Activity Table Component
-interface EnhancedActivityTableProps {
+// Activity Table Component with FIXED calculations
+interface AllSizesActivityTableProps {
   ledger: ClientLedger;
   onDownloadChallan: (transaction: any, type: 'udhar' | 'jama') => void;
   downloading: string | null;
 }
 
-function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: EnhancedActivityTableProps) {
-  const [showAllSizes, setShowAllSizes] = useState(false);
-  
-  // Get only plate sizes that have activity
-  const activePlateSizes = PLATE_SIZES.filter(size => {
-    const balance = ledger.plate_balances.find(b => b.plate_size === size);
-    return balance && (balance.total_borrowed > 0 || balance.total_returned > 0);
-  });
-
-  const displaySizes = showAllSizes ? PLATE_SIZES : activePlateSizes;
+function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSizesActivityTableProps) {
+  const allPlateSizes = PLATE_SIZES;
 
   const getCurrentBalance = (plateSize: string) => {
     const balance = ledger.plate_balances.find(b => b.plate_size === plateSize);
@@ -704,10 +565,12 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
     return item?.notes || '';
   };
 
+  // Helper function to check if transaction has borrowed stock
   const hasBorrowedStock = (transaction: typeof ledger.all_transactions[0]) => {
     return transaction.type === 'udhar' && transaction.items.some(item => (item.borrowed_stock || 0) > 0);
   };
 
+  // Helper function to calculate total INCLUDING borrowed stock for કુલ column
   const getTransactionTotalWithBorrowed = (transaction: typeof ledger.all_transactions[0]) => {
     const regularTotal = transaction.items.reduce((sum, item) => sum + item.quantity, 0);
     if (transaction.type === 'udhar') {
@@ -721,6 +584,7 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
     return regularTotal;
   };
 
+  // FINAL: Helper function to format plate display - shows COMBINED total with borrowed stock and notes in ONE LINE sup tag
   const formatPlateDisplay = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const quantity = getTransactionQuantity(transaction, plateSize);
     
@@ -738,9 +602,12 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
     }
 
     const notes = getNotes(transaction, plateSize);
+    
+    // Show combined total (quantity + borrowed stock) as main display
     const combinedTotal = quantity + borrowedStock;
     const displayQuantity = `${prefix}${combinedTotal}`;
 
+    // FINAL: Create single line superscript content
     const supContent = [];
     if (borrowedStock > 0) {
       supContent.push(`+${borrowedStock}`);
@@ -749,13 +616,14 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
       supContent.push(notes);
     }
 
+    // Return JSX element with combined total and single line sup tag
     return (
       <span className={`font-bold text-sm ${
-        transaction.type === 'udhar' ? 'text-orange-700' : 'text-green-700'
+        transaction.type === 'udhar' ? 'text-yellow-700' : 'text-green-700'
       }`}>
         {displayQuantity}
         {supContent.length > 0 && (
-          <sup className="text-xs font-bold text-purple-600 bg-purple-100 px-1 py-0.5 rounded ml-0.5 whitespace-nowrap" style={{fontSize: '8px'}}>
+          <sup className="text-xs font-bold text-red-600 bg-red-100 px-1 py-0.5 rounded ml-0.5 whitespace-nowrap" style={{fontSize: '8px'}}>
             {supContent.join(' ')}
           </sup>
         )}
@@ -763,6 +631,7 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
     );
   };
 
+  // FIXED: Calculate net borrowed stock (issued borrowed - returned borrowed)
   const getNetBorrowedStock = () => {
     const issuedBorrowed = ledger.all_transactions
       .filter(t => t.type === 'udhar')
@@ -779,81 +648,74 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
     return issuedBorrowed - returnedBorrowed;
   };
 
+  // FIXED: Calculate accurate grand total
   const getAccurateGrandTotal = () => {
+    // Regular outstanding balance (plates)
     const regularOutstanding = ledger.plate_balances.reduce((sum, balance) => sum + Math.abs(balance.outstanding), 0);
+    
+    // Net borrowed stock outstanding
     const netBorrowedStock = getNetBorrowedStock();
+    
     return regularOutstanding + netBorrowedStock;
   };
   
   return (
     <div className="p-3">
-      {/* Enhanced Header with Toggle */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500">
-            <Package className="w-3 h-3 text-white" />
-          </div>
-          <h4 className="text-sm font-semibold text-gray-900">પ્લેટ પ્રવૃત્તિ</h4>
+      {/* Blue Themed Header */}
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500">
+          <Package className="w-3 h-3 text-white" />
         </div>
-        
-        {activePlateSizes.length !== PLATE_SIZES.length && (
-          <button
-            onClick={() => setShowAllSizes(!showAllSizes)}
-            className="px-2 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded bg-blue-50 hover:bg-blue-100"
-          >
-            {showAllSizes ? 'માત્ર સક્રિય' : 'બધા સાઇઝ'}
-          </button>
-        )}
+        <h4 className="text-sm font-semibold text-gray-900">પ્લેટ પ્રવૃત્તિ</h4>
       </div>
       
-      {/* Enhanced Responsive Table */}
+      {/* Enhanced Table with FIXED grand total calculation */}
       <div className="overflow-hidden bg-white border-2 border-blue-100 rounded-lg shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="text-white bg-gradient-to-r from-blue-500 to-indigo-500">
-                <th className="sticky left-0 bg-gradient-to-r from-blue-500 to-indigo-500 px-2 py-2 text-left font-bold min-w-[70px] border-r border-blue-400">
+                <th className="sticky left-0 bg-gradient-to-r from-blue-500 to-indigo-500 px-1 py-1.5 text-left font-bold min-w-[60px]">
                   <div className="text-xs">ચલણ નં.</div>
                 </th>
-                <th className="px-1 py-2 text-center font-bold min-w-[50px] border-l border-blue-400">
+                <th className="px-1 py-1.5 text-center font-bold min-w-[60px] border-l border-blue-400">
                   <div className="text-xs">તારીખ</div>
                 </th>
-                <th className="px-1 py-2 text-center font-bold min-w-[40px] border-l border-blue-400">
+                <th className="px-1 py-1.5 text-center font-bold min-w-[60px] border-l border-blue-400">
                   <div className="text-xs">કુલ</div>
                 </th>
-                {displaySizes.map(size => (
-                  <th key={size} className="px-1 py-2 text-center font-bold min-w-[45px] border-l border-blue-400">
-                    <div className="text-xs leading-tight">{size}</div>
+                {allPlateSizes.map(size => (
+                  <th key={size} className="px-1 py-1.5 text-center font-bold min-w-[50px] border-l border-blue-400">
+                    <div className="text-xs">{size}</div>
                   </th>
                 ))}
-                <th className="px-1 py-2 text-center font-bold min-w-[40px] border-l border-blue-400">
-                  <div className="text-xs">PDF</div>
+                <th className="px-1 py-1.5 text-center font-bold min-w-[50px] border-l border-blue-400">
+                  <div className="text-xs">ડાઉનલોડ</div>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {/* Enhanced Current Balance Row */}
+              {/* FIXED Current Balance Row - Shows accurate grand total */}
               <tr className="border-b-2 border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
-                <td className="sticky left-0 bg-gradient-to-r from-blue-100 to-indigo-100 px-2 py-2 font-bold text-blue-900 border-r border-blue-200">
-                  <div className="text-xs leading-tight">વર્તમાન<br />બેલેન્સ</div>
+                <td className="sticky left-0 bg-gradient-to-r from-blue-100 to-indigo-100 px-1 py-1.5 font-bold text-blue-900 border-r border-blue-200">
+                  <div className="text-xs">વર્તમાન બેલેન્સ</div>
                 </td>
-                <td className="px-1 py-2 text-center border-l border-blue-200">
+                <td className="px-1 py-1.5 text-center border-l border-blue-200">
                   <div className="text-xs font-semibold text-blue-700">-</div>
                 </td>
-                <td className="px-1 py-2 text-center border-l border-blue-200">
-                  <div className="text-sm font-bold text-blue-800">
+                <td className="px-1 py-1.5 text-center border-l border-blue-200">
+                  <div className="text-xs font-semibold text-blue-700">
                     {getAccurateGrandTotal()}
                   </div>
                 </td>
-                {displaySizes.map(size => {
+                {/* Show ALL plate sizes, even blank ones */}
+                {allPlateSizes.map(size => {
                   const balance = getCurrentBalance(size);
                   return (
-                    <td key={size} className="px-1 py-2 text-center border-l border-blue-200">
+                    <td key={size} className="px-1 py-1.5 text-center border-l border-blue-200">
                       {balance !== 0 ? (
-                        <span className={`font-bold text-sm px-1 py-0.5 rounded ${
-                          balance > 0 
-                            ? 'text-red-700 bg-red-100' 
-                            : 'text-green-700 bg-green-100'
+                        <span className={`font-bold text-sm ${
+                          balance > 0 ? 'text-red-600' : 'text-green-600'
                         }`}>
                           {balance}
                         </span>
@@ -863,46 +725,39 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
                     </td>
                   );
                 })}
-                <td className="px-1 py-2 text-center border-l border-blue-200">
+                <td className="px-1 py-1.5 text-center border-l border-blue-200">
                   <div className="text-xs font-semibold text-blue-700">-</div>
                 </td>
               </tr>
 
-              {/* Enhanced Transaction Rows */}
+              {/* Transaction Rows - Updated display logic */}
               {ledger.all_transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={displaySizes.length + 4} className="px-2 py-6 text-center text-blue-500">
+                  <td colSpan={allPlateSizes.length + 4} className="px-1 py-4 text-center text-blue-500">
                     <div className="text-xs">કોઈ ચલણ નથી</div>
                   </td>
                 </tr>
               ) : (
-                ledger.all_transactions.map((transaction, index) => (
-                  <motion.tr 
+                ledger.all_transactions.map((transaction) => (
+                  <tr 
                     key={`${transaction.type}-${transaction.id}`}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.05 }}
                     className={`border-b border-blue-100 hover:bg-blue-25 transition-colors ${
-                      transaction.type === 'udhar' ? 'bg-orange-50' : 'bg-green-50'
+                      transaction.type === 'udhar' ? 'bg-yellow-50' : 'bg-green-50'
                     }`}
                   >
-                    <td className={`sticky left-0 px-2 py-1.5 border-r border-blue-100 ${
-                      transaction.type === 'udhar' ? 'bg-orange-50' : 'bg-green-50'
+                    <td className={`sticky left-0 px-1 py-0.5 border-r border-blue-100 ${
+                      transaction.type === 'udhar' ? 'bg-yellow-50' : 'bg-green-50'
                     }`}>
-                      <div className="text-xs font-semibold text-gray-900 leading-tight">
+                      <div className="text-xs font-semibold text-gray-900">
                         #{transaction.number}
+                        {/* Add asterisk if transaction has borrowed stock */}
                         {hasBorrowedStock(transaction) && (
                           <span className="font-bold text-purple-600">*</span>
-                        )}
-                        {transaction.driver_name && (
-                          <div className="text-xs text-gray-600 mt-0.5 truncate max-w-[60px]">
-                            {transaction.driver_name}
-                          </div>
                         )}
                       </div>
                     </td>
                     
-                    <td className="px-1 py-1.5 text-center border-l border-blue-100">
+                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
                       <div className="text-xs font-medium text-blue-600">
                         {(() => {
                           const d = new Date(transaction.date);
@@ -914,20 +769,18 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
                       </div>
                     </td>
                     
-                    <td className="px-1 py-1.5 text-center border-l border-blue-100">
-                      <div className={`text-sm font-bold px-1 py-0.5 rounded ${
-                        transaction.type === 'udhar' 
-                          ? 'text-orange-700 bg-orange-100' 
-                          : 'text-green-700 bg-green-100'
-                      }`}>
+                    {/* Total Column - shows કુલ grand total including borrowed stock */}
+                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
+                      <div className="text-xs font-medium text-blue-600">
                         {getTransactionTotalWithBorrowed(transaction)}
                       </div>
                     </td>
 
-                    {displaySizes.map(size => {
+                    {/* Show ALL plate sizes with COMBINED totals and notes in ONE LINE smaller sup tag */}
+                    {allPlateSizes.map(size => {
                       const formattedDisplay = formatPlateDisplay(transaction, size);
                       return (
-                        <td key={size} className="px-1 py-1.5 text-center border-l border-blue-100">
+                        <td key={size} className="px-1 py-0.5 text-center border-l border-blue-100">
                           {formattedDisplay ? (
                             formattedDisplay
                           ) : (
@@ -937,69 +790,40 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
                       );
                     })}
                     
-                    <td className="px-1 py-1.5 text-center border-l border-blue-100">
+                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
                       <button
                         onClick={() => onDownloadChallan(transaction, transaction.type)}
                         disabled={downloading === `${transaction.type}-${transaction.id}`}
-                        className={`p-1 rounded-full transition-all duration-200 hover:shadow-md transform hover:scale-110 ${
+                        className={`p-0.5 rounded-full transition-all duration-200 hover:shadow-md ${
                           transaction.type === 'udhar'
-                            ? 'text-orange-600 hover:bg-orange-200 hover:text-orange-700'
+                            ? 'text-yellow-600 hover:bg-yellow-200 hover:text-yellow-700'
                             : 'text-green-600 hover:bg-green-200 hover:text-green-700'
                         } disabled:opacity-50`}
                       >
-                        {downloading === `${transaction.type}-${transaction.id}` ? (
-                          <div className="w-3 h-3 border border-current rounded-full border-t-transparent animate-spin" />
-                        ) : (
-                          <Download className="w-3 h-3" />
-                        )}
+                        <Download className="w-3 h-3" />
                       </button>
                     </td>
-                  </motion.tr>
+                  </tr>
                 ))
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Enhanced Legend and Summary */}
-        <div className="p-3 space-y-3 border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-          {/* Legend */}
+        {/* Blue Themed Legend */}
+        <div className="p-3 border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex flex-wrap justify-center gap-3 text-xs">
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 bg-orange-400 rounded-full shadow-sm"></div>
+              <div className="w-3 h-3 bg-yellow-400 rounded-full shadow-sm"></div>
               <span className="font-medium text-blue-700">ઉધાર (Issue)</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-3 h-3 bg-green-400 rounded-full shadow-sm"></div>
-              <span className="font-medium text-blue-700">જમા (Return)</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span className="text-purple-600 font-bold">*</span>
-              <span className="font-medium text-blue-700">ઉધાર સ્ટોક</span>
+              <span className="font-medium text-blue-700">વસુલ (Return)</span>
             </div>
             <div className="flex items-center gap-1">
               <FileImage className="w-3 h-3 text-blue-600" />
               <span className="font-medium text-blue-700">લેજર ડાઉનલોડ</span>
-            </div>
-          </div>
-
-          {/* Quick Summary */}
-          <div className="grid grid-cols-3 gap-2 pt-2 border-t border-blue-200">
-            <div className="text-center">
-              <div className="text-xs text-blue-600">કુલ ચલણ</div>
-              <div className="text-sm font-bold text-blue-800">{ledger.all_transactions.length}</div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-blue-600">ઉધાર ચલણ</div>
-              <div className="text-sm font-bold text-orange-700">
-                {ledger.all_transactions.filter(t => t.type === 'udhar').length}
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-xs text-blue-600">જમા ચલણ</div>
-              <div className="text-sm font-bold text-green-700">
-                {ledger.all_transactions.filter(t => t.type === 'jama').length}
-              </div>
             </div>
           </div>
         </div>
@@ -1008,4 +832,4 @@ function EnhancedActivityTable({ ledger, onDownloadChallan, downloading }: Enhan
   );
 }
 
-export default MobileLedgerPage;
+export default MobileLedgerPage;  
