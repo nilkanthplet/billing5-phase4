@@ -2,12 +2,12 @@ import { MobileNavbar } from './MobileNavbar'
 
 export function MobileLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 font-gujarati">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50 font-gujarati">
       {/* Mobile Navbar */}
       <MobileNavbar />
 
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-[414px] mx-auto overflow-y-auto pt-20 pb-20">
+      <main className="w-full max-w-[414px] mx-auto overflow-y-auto pt-16 pb-16 min-h-screen">
         {children}
       </main>
     </div>
