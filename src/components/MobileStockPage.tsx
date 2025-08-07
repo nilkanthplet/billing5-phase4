@@ -53,7 +53,8 @@ export function MobileStockPage() {
 
   const fetchBorrowedStock = async () => {
     try {
-      const { data, error } = await supabase
+      // Get all active borrowed stock
+      const { data: borrowedData, error: borrowedError } = await supabase
         .from('challan_items')
         .select(`
           plate_size,
@@ -62,20 +63,34 @@ export function MobileStockPage() {
         `)
         .eq('challans.status', 'active');
 
-      if (error) throw error;
+      if (borrowedError) throw borrowedError;
 
-      const aggregated = (data || []).reduce((acc, item) => {
-        const existing = acc.find(a => a.plate_size === item.plate_size);
-        if (existing) {
-          existing.total_borrowed += item.borrowed_stock || 0;
-        } else {
-          acc.push({
-            plate_size: item.plate_size,
-            total_borrowed: item.borrowed_stock || 0
-          });
-        }
+      // Get all returned borrowed stock
+      const { data: returnedData, error: returnedError } = await supabase
+        .from('return_line_items')
+        .select(`
+          plate_size,
+          returned_borrowed_stock
+        `);
+
+      if (returnedError) throw returnedError;
+
+      // Calculate net borrowed stock (borrowed - returned)
+      const borrowedMap = (borrowedData || []).reduce((acc, item) => {
+        acc[item.plate_size] = (acc[item.plate_size] || 0) + (item.borrowed_stock || 0);
         return acc;
-      }, [] as BorrowedStockData[]);
+      }, {} as Record<string, number>);
+
+      const returnedMap = (returnedData || []).reduce((acc, item) => {
+        acc[item.plate_size] = (acc[item.plate_size] || 0) + (item.returned_borrowed_stock || 0);
+        return acc;
+      }, {} as Record<string, number>);
+
+      // Calculate final borrowed quantities
+      const aggregated = Object.entries(borrowedMap).map(([plate_size, borrowed]) => ({
+        plate_size,
+        total_borrowed: Math.max(0, borrowed - (returnedMap[plate_size] || 0))
+      }));
 
       setBorrowedStockData(aggregated);
     } catch (error) {
