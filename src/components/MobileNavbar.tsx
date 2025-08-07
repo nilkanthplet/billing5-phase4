@@ -90,8 +90,8 @@ export function MobileNavbar() {
   return (
     <>
       {/* TOP BAR - Blue Theme Gradient */}
-      <header className="fixed top-0 left-0 right-0 z-50 shadow-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-noto-gujarati">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b shadow-sm lg:hidden">
+      <header className="fixed top-0 left-0 right-0 z-50 shadow-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-noto-gujarati lg:hidden">
+        <div className="flex items-center justify-between px-4 py-3">
           {/* Hamburger Menu Button */}
           <button
             onClick={() => setIsMenuOpen(true)}
@@ -245,6 +245,6 @@ export function MobileNavbar() {
           ))}
         </div>
       </nav>
-    </div>
+    </>
   )
 }
