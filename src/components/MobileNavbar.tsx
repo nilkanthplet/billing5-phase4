@@ -90,7 +90,7 @@ export function MobileNavbar() {
   return (
     <>
       {/* TOP BAR - Blue Theme Gradient */}
-      <header className="fixed top-0 left-0 right-0 z-50 shadow-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-noto-gujarati lg:hidden">
+      <header className="fixed top-0 left-0 right-0 z-50 shadow-xl bg-gradient-to-r from-blue-600 to-indigo-600 font-gujarati">
         <div className="flex items-center justify-between px-4 py-3">
           {/* Hamburger Menu Button */}
           <button
@@ -127,7 +127,7 @@ export function MobileNavbar() {
 
       {/* HAMBURGER MENU OVERLAY - Enhanced Blue Theme */}
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[100] font-noto-gujarati">
+        <div className="fixed inset-0 z-[100] font-gujarati">
           {/* Backdrop */}
           <div 
             className="absolute inset-0 bg-blue-900/30 backdrop-blur-sm"
@@ -218,7 +218,7 @@ export function MobileNavbar() {
       )}
 
       {/* BOTTOM TAB BAR - Enhanced Blue Theme */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t-2 border-blue-100 shadow-xl font-noto-gujarati h-16">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t-2 border-blue-100 shadow-xl font-gujarati h-16">
         <div className="grid h-16 grid-cols-4 bg-gradient-to-r from-blue-50 to-indigo-50">
           {filteredBottomNavItems.map((item) => (
             <Link
