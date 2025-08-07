@@ -380,8 +380,8 @@ export function MobileLedgerPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
-        <div className="p-2 space-y-2">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
+        <div className="p-4 space-y-3">
           <div className="pt-1 text-center">
             <div className="w-24 h-3 mx-auto mb-1 bg-blue-200 rounded animate-pulse"></div>
             <div className="w-32 h-2 mx-auto bg-blue-200 rounded animate-pulse"></div>
@@ -399,7 +399,7 @@ export function MobileLedgerPage() {
 
 
   return (
-    <div className="min-h-screen pb-16 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
       {/* Hidden Printable Challan */}
       <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
         {challanData && (
@@ -410,9 +410,9 @@ export function MobileLedgerPage() {
       </div>
 
 
-      <div className="p-2 space-y-3">
+      <div className="p-4 space-y-4">
         {/* Compact Header with Stats */}
-        <div className="pt-1 text-center">
+        <div className="text-center">
           <div className="inline-flex items-center justify-center w-8 h-8 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
             <BookOpen className="w-4 h-4 text-white" />
           </div>

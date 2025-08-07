@@ -250,7 +250,6 @@ export function MobileNavbar() {
       <div className="h-16" />
       
       {/* Bottom spacing for content */}
-      <div className="h-16" />
     </>
   )
 }

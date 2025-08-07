@@ -158,7 +158,7 @@ export function MobileStockPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen pb-20 bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
         <div className="p-4">
           <div className="h-10 mb-4 rounded bg-slate-200 animate-pulse"></div>
           <div className="h-12 mb-4 rounded bg-slate-200 animate-pulse"></div>
@@ -173,7 +173,7 @@ export function MobileStockPage() {
   }
 
   return (
-    <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-blue-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50 to-blue-50">
       <div className="p-4">
         {/* Header */}
         <div className="flex items-center gap-2 p-3 mb-4 bg-white border border-blue-200 rounded-xl">

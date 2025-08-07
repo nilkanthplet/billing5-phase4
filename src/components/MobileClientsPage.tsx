@@ -110,8 +110,8 @@ export function MobileClientsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
-        <div className="p-3 space-y-3">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
+        <div className="p-4 space-y-4">
           <div className="pt-2 text-center">
             <div className="w-32 h-5 mx-auto mb-1 bg-blue-200 rounded animate-pulse"></div>
             <div className="w-40 h-3 mx-auto bg-blue-200 rounded animate-pulse"></div>
@@ -128,10 +128,10 @@ export function MobileClientsPage() {
   }
 
   return (
-    <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
-      <div className="p-3 space-y-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
+      <div className="p-4 space-y-4">
         {/* Blue Themed Header */}
-        <div className="pt-2 text-center">
+        <div className="text-center">
           <div className="inline-flex items-center justify-center w-10 h-10 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
             <Users className="w-5 h-5 text-white" />
           </div>

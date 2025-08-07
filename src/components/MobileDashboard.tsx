@@ -216,10 +216,10 @@ export function MobileDashboard() {
   const dateInfo = getGujaratiDate();
 
   return (
-    <div className="min-h-screen pb-24 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
-      <div className="p-3 space-y-4">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
+      <div className="p-4 space-y-4">
         {/* Enhanced Date and Time Header */}
-        <div className="pt-4 text-center">
+        <div className="text-center">
           <div className="p-4 mx-2 bg-white border-2 border-blue-100 shadow-lg rounded-2xl">
             <div className="flex items-center justify-center gap-2 mb-2">
               <div className="flex items-center justify-center w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600">
@@ -409,7 +409,7 @@ export function MobileDashboard() {
 
         {/* Floating Action Button - Blue Theme */}
         {user?.isAdmin && (
-          <div className="fixed z-40 bottom-20 right-4 md:hidden">
+          <div className="fixed z-40 bottom-24 right-4 md:hidden">
             <Link
               to="/issue"
               className="flex items-center justify-center p-4 text-white transition-all duration-200 border-2 border-blue-300 rounded-full shadow-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:scale-110"

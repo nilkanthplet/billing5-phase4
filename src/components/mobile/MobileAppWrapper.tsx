@@ -26,7 +26,7 @@ export function MobileAppWrapper({ children }: MobileAppWrapperProps) {
 
   return (
     <div 
-      className={`min-h-screen ${isNative ? 'native-app' : 'web-app'}`}
+      className={`min-h-screen mobile-safe-area ${isNative ? 'native-app' : 'web-app'}`}
       style={{
         paddingBottom: keyboardHeight ? `${keyboardHeight}px` : undefined,
         transition: 'padding-bottom 0.3s ease'
@@ -66,6 +66,19 @@ export function MobileAppWrapper({ children }: MobileAppWrapperProps) {
             .native-app {
               padding-top: env(safe-area-inset-top);
               padding-bottom: env(safe-area-inset-bottom);
+            }
+            
+            /* Prevent content overflow */
+            .native-app * {
+              box-sizing: border-box;
+            }
+            
+            /* Better touch targets */
+            .native-app button,
+            .native-app input,
+            .native-app select {
+              min-height: 44px;
+              min-width: 44px;
             }
           `}
         </style>

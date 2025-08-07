@@ -720,8 +720,8 @@ export function MobileReturnRental() {
   // Show access denied for non-admin users
   if (!user?.isAdmin) {
     return (
-      <div className="min-h-screen pb-20 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
-        <div className="p-3 space-y-3">
+      <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
+        <div className="p-4 space-y-4">
           <div className="pt-2 text-center">
             <div className="inline-flex items-center justify-center w-10 h-10 mb-2 rounded-full shadow-lg bg-gradient-to-r from-gray-500 to-gray-600">
               <Lock className="w-5 h-5 text-white" />
@@ -748,10 +748,10 @@ export function MobileReturnRental() {
   }
 
   return (
-    <div className="min-h-screen pb-20 bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
-      <div className="p-3 space-y-3">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50">
+      <div className="p-4 space-y-4">
         {/* Compact Header */}
-        <div className="pt-2 text-center">
+        <div className="text-center">
           <div className="inline-flex items-center justify-center w-10 h-10 mb-2 rounded-full shadow-lg bg-gradient-to-r from-green-500 to-emerald-500">
             <RotateCcw className="w-5 h-5 text-white" />
           </div>

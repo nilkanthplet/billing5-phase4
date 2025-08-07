@@ -79,9 +79,9 @@ export function BillManagementPage() {
   );
 
   return (
-    <div className="space-y-4 pb-20">
+    <div className="space-y-4">
       {/* Search Header */}
-      <div className="sticky top-16 bg-gray-50 z-40 -mx-4 px-4 py-3 border-b border-gray-200">
+      <div className="bg-gray-50 z-40 p-4 border-b border-gray-200 rounded-lg">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input

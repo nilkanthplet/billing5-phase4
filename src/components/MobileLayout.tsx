@@ -7,7 +7,7 @@ export function MobileLayout({ children }: { children: React.ReactNode }) {
       <MobileNavbar />
 
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-[414px] px-4 py-4 mx-auto overflow-y-auto">
+      <main className="flex-1 w-full max-w-[414px] mx-auto overflow-y-auto pt-20 pb-20">
         {children}
       </main>
     </div>

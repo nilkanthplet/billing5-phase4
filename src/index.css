@@ -34,6 +34,8 @@
   html {
     font-size: 18px; /* Larger base font for better readability */
     line-height: 1.5;
+    /* Prevent horizontal scrolling on mobile */
+    overflow-x: hidden;
   }
   
   /* Larger font sizes for mobile */
@@ -93,6 +95,8 @@
   select,
   textarea {
     font-size: 16px;
+    /* Prevent zoom on iOS */
+    transform: scale(1);
   }
   
   /* High contrast for outdoor visibility */
@@ -106,6 +110,25 @@
   .text-high-contrast {
     color: #1a1a1a;
     font-weight: 500;
+  }
+  
+  /* Mobile layout fixes */
+  .mobile-safe-area {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  /* Prevent content from going under navigation */
+  .mobile-content {
+    padding-top: 80px; /* Top navbar height + padding */
+    padding-bottom: 80px; /* Bottom navbar height + padding */
+    min-height: 100vh;
+  }
+  
+  /* Smooth scrolling for mobile */
+  .mobile-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
   }
 }
 

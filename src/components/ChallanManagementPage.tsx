@@ -468,7 +468,7 @@ export function ChallanManagementPage() {
   const currentChallans = activeTab === 'udhar' ? filteredUdharChallans : filteredJamaChallans;
 
   return (
-    <div className="min-h-screen pb-20 bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
       {/* Hidden Printable Challan */}
       <div style={{ position: 'fixed', left: '-9999px', top: 0 }}>
         {challanData && (
@@ -478,9 +478,9 @@ export function ChallanManagementPage() {
         )}
       </div>
 
-      <div className="p-3 space-y-4">
+      <div className="p-4 space-y-4">
         {/* Blue Themed Header */}
-        <div className="pt-2 text-center">
+        <div className="text-center">
           <div className="inline-flex items-center justify-center w-10 h-10 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
             <BookOpen className="w-5 h-5 text-white" />
           </div>
