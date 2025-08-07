@@ -101,6 +101,45 @@ function drawRect(
   }
 }
 
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  fontSize: number = 16,
+  fontWeight: string = 'normal',
+  color: string = '#000000'
+): number {
+  if (!text || text.trim() === '') return y;
+  
+  ctx.font = `${fontWeight} ${fontSize}px "Noto Sans Gujarati", Arial, sans-serif`;
+  ctx.fillStyle = color;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  
+  const words = text.split(' ');
+  let line = '';
+  let currentY = y;
+  
+  for (let n = 0; n < words.length; n++) {
+    const testLine = line + words[n] + ' ';
+    const metrics = ctx.measureText(testLine);
+    const testWidth = metrics.width;
+    
+    if (testWidth > maxWidth && n > 0) {
+      ctx.fillText(line, x, currentY);
+      line = words[n] + ' ';
+      currentY += lineHeight;
+    } else {
+      line = testLine;
+    }
+  }
+  
+  ctx.fillText(line, x, currentY);
+  return currentY + lineHeight;
+}
 export async function generateClientLedgerJPG(data: ClientLedgerData): Promise<string> {
   return new Promise((resolve, reject) => {
     const canvas = document.createElement('canvas');
@@ -111,9 +150,9 @@ export async function generateClientLedgerJPG(data: ClientLedgerData): Promise<s
       return;
     }
 
-    // Set canvas to A4 size at high resolution
+    // Set canvas to A4 size at higher resolution for better quality
     canvas.width = 2480;
-    canvas.height = 3508;
+    canvas.height = Math.max(3508, 2000 + (data.transactions.length * 60) + (data.plate_balances.length * 50));
 
     try {
       // Enable high-quality rendering
@@ -164,10 +203,19 @@ export async function generateClientLedgerJPG(data: ClientLedgerData): Promise<s
       renderText(ctx, data.total_outstanding.toString(), margin + pageWidth - 100, currentY, 36, 'bold', '#dc2626', 'right');
       currentY += 100;
       
-      // Plate Balance Table
+      // Enhanced Plate Balance Table - Show only active plates
       renderText(ctx, 'પ્લેટ બેલેન્સ (Plate Balance)', margin, currentY, 28, 'bold', '#1e40af');
       currentY += 50;
       
+      // Filter to show only plates with activity
+      const activePlateBalances = data.plate_balances.filter(balance => 
+        balance.total_borrowed > 0 || balance.total_returned > 0
+      );
+      
+      if (activePlateBalances.length === 0) {
+        renderText(ctx, 'કોઈ પ્લેટ પ્રવૃત્તિ નથી (No plate activity)', margin + 20, currentY, 20, 'italic', '#6b7280');
+        currentY += 60;
+      } else {
       // Table header
       const tableY = currentY;
       const colWidths = [300, 200, 200, 200];
@@ -181,7 +229,7 @@ export async function generateClientLedgerJPG(data: ClientLedgerData): Promise<s
       currentY += 50;
       
       // Table rows
-      data.plate_balances.forEach((balance, index) => {
+        activePlateBalances.forEach((balance, index) => {
         const rowColor = index % 2 === 0 ? '#f8fafc' : '#ffffff';
         drawRect(ctx, margin, currentY, pageWidth, 40, rowColor, '#e2e8f0', 1);
         
@@ -194,38 +242,41 @@ export async function generateClientLedgerJPG(data: ClientLedgerData): Promise<s
         
         currentY += 40;
       });
+      }
       
       currentY += 60;
       
-      // Transaction History
+      // Enhanced Transaction History
       if (data.transactions.length > 0) {
         renderText(ctx, 'ટ્રાન્ઝેક્શન ઇતિહાસ (Transaction History)', margin, currentY, 28, 'bold', '#1e40af');
         currentY += 50;
         
-        // Transaction table header
-        const txColWidths = [150, 200, 150, 300, 200];
+        // Enhanced transaction table header
+        const txColWidths = [120, 180, 120, 400, 150, 200];
         const txColX = [
           margin,
           margin + txColWidths[0],
           margin + txColWidths[0] + txColWidths[1],
           margin + txColWidths[0] + txColWidths[1] + txColWidths[2],
-          margin + txColWidths[0] + txColWidths[1] + txColWidths[2] + txColWidths[3]
+          margin + txColWidths[0] + txColWidths[1] + txColWidths[2] + txColWidths[3],
+          margin + txColWidths[0] + txColWidths[1] + txColWidths[2] + txColWidths[3] + txColWidths[4]
         ];
         
-        drawRect(ctx, margin, currentY, pageWidth, 50, '#1e40af');
+        drawRect(ctx, margin, currentY, pageWidth, 60, '#1e40af');
         renderText(ctx, 'પ્રકાર', txColX[0] + 10, currentY + 15, 18, 'bold', '#ffffff');
         renderText(ctx, 'ચલણ નંબર', txColX[1] + 10, currentY + 15, 18, 'bold', '#ffffff');
         renderText(ctx, 'તારીખ', txColX[2] + 10, currentY + 15, 18, 'bold', '#ffffff');
-        renderText(ctx, 'વિગતો', txColX[3] + 10, currentY + 15, 18, 'bold', '#ffffff');
-        renderText(ctx, 'કુલ', txColX[4] + 10, currentY + 15, 18, 'bold', '#ffffff');
-        currentY += 50;
+        renderText(ctx, 'પ્લેટ વિગતો', txColX[3] + 10, currentY + 15, 18, 'bold', '#ffffff');
+        renderText(ctx, 'ડ્રાઈવર', txColX[4] + 10, currentY + 15, 18, 'bold', '#ffffff');
+        renderText(ctx, 'કુલ', txColX[5] + 10, currentY + 15, 18, 'bold', '#ffffff');
+        currentY += 60;
         
-        // Transaction rows (limit to fit on page)
-        const maxTransactions = Math.min(data.transactions.length, 15);
+        // Enhanced transaction rows
+        const maxTransactions = Math.min(data.transactions.length, 25);
         for (let i = 0; i < maxTransactions; i++) {
           const transaction = data.transactions[i];
           const rowColor = i % 2 === 0 ? '#f8fafc' : '#ffffff';
-          const rowHeight = 60;
+          const rowHeight = 80;
           
           drawRect(ctx, margin, currentY, pageWidth, rowHeight, rowColor, '#e2e8f0', 1);
           
@@ -241,28 +292,73 @@ export async function generateClientLedgerJPG(data: ClientLedgerData): Promise<s
           const formattedDate = new Date(transaction.date).toLocaleDateString('en-GB');
           renderText(ctx, formattedDate, txColX[2] + 10, currentY + 10, 18, 'normal', '#374151');
           
-          // Details (plate sizes and quantities)
-          const details = transaction.items
+          // Enhanced Details (plate sizes, quantities, and borrowed stock)
+          let details = transaction.items
             .filter(item => item.quantity > 0)
-            .map(item => `${item.plate_size}:${item.quantity}`)
+            .map(item => {
+              let itemDetail = `${item.plate_size}:${item.quantity}`;
+              if (transaction.type === 'udhar' && item.borrowed_stock && item.borrowed_stock > 0) {
+                itemDetail += `(+${item.borrowed_stock})`;
+              }
+              if (transaction.type === 'jama' && item.returned_borrowed_stock && item.returned_borrowed_stock > 0) {
+                itemDetail += `(+${item.returned_borrowed_stock})`;
+              }
+              return itemDetail;
+            })
             .join(', ');
-          const truncatedDetails = details.length > 30 ? details.substring(0, 27) + '...' : details;
-          renderText(ctx, truncatedDetails, txColX[3] + 10, currentY + 10, 16, 'normal', '#374151');
           
-          // Total
-          const total = transaction.items.reduce((sum, item) => sum + item.quantity, 0);
-          renderText(ctx, total.toString(), txColX[4] + 10, currentY + 10, 18, 'bold', '#374151');
+          // Use text wrapping for better details display
+          wrapText(ctx, details, txColX[3] + 10, currentY + 10, txColWidths[3] - 20, 20, 16, 'normal', '#374151');
+          
+          // Driver name
+          if (transaction.driver_name) {
+            renderText(ctx, transaction.driver_name, txColX[4] + 10, currentY + 10, 16, 'normal', '#374151');
+          }
+          
+          // Enhanced Total (including borrowed stock)
+          let total = transaction.items.reduce((sum, item) => sum + item.quantity, 0);
+          if (transaction.type === 'udhar') {
+            total += transaction.items.reduce((sum, item) => sum + (item.borrowed_stock || 0), 0);
+          }
+          if (transaction.type === 'jama') {
+            total += transaction.items.reduce((sum, item) => sum + (item.returned_borrowed_stock || 0), 0);
+          }
+          renderText(ctx, total.toString(), txColX[5] + 10, currentY + 10, 18, 'bold', '#374151');
           
           currentY += rowHeight;
         }
         
         if (data.transactions.length > maxTransactions) {
-          renderText(ctx, `... અને ${data.transactions.length - maxTransactions} વધુ ટ્રાન્ઝેક્શન`, margin, currentY + 20, 18, 'italic', '#6b7280');
+          currentY += 20;
+          renderText(ctx, `... અને ${data.transactions.length - maxTransactions} વધુ ટ્રાન્ઝેક્શન`, margin, currentY, 18, 'italic', '#6b7280');
+          currentY += 40;
         }
+      } else {
+        renderText(ctx, 'કોઈ ટ્રાન્ઝેક્શન ઇતિહાસ નથી (No transaction history)', margin, currentY, 20, 'italic', '#6b7280');
+        currentY += 60;
       }
       
+      // Enhanced Summary Section
+      currentY += 40;
+      drawRect(ctx, margin, currentY, pageWidth, 150, '#e0f2fe', '#0277bd', 2);
+      currentY += 20;
+      
+      renderText(ctx, 'સારાંશ (Summary)', margin + 20, currentY, 24, 'bold', '#0277bd');
+      currentY += 40;
+      
+      const udharCount = data.transactions.filter(t => t.type === 'udhar').length;
+      const jamaCount = data.transactions.filter(t => t.type === 'jama').length;
+      
+      renderText(ctx, `કુલ ઉધાર ચલણ: ${udharCount}`, margin + 20, currentY, 20, 'normal', '#374151');
+      renderText(ctx, `કુલ જમા ચલણ: ${jamaCount}`, margin + 400, currentY, 20, 'normal', '#374151');
+      currentY += 35;
+      
+      renderText(ctx, `કુલ ટ્રાન્ઝેક્શન: ${data.transactions.length}`, margin + 20, currentY, 20, 'normal', '#374151');
+      renderText(ctx, `કુલ બાકી પ્લેટ્સ: ${data.total_outstanding}`, margin + 400, currentY, 20, 'bold', data.total_outstanding > 0 ? '#dc2626' : '#16a34a');
+      currentY += 80;
+      
       // Footer
-      currentY = canvas.height - 200;
+      currentY = Math.max(currentY + 60, canvas.height - 200);
       drawLine(ctx, margin, currentY, margin + pageWidth, currentY, '#e2e8f0', 2);
       currentY += 30;
       
