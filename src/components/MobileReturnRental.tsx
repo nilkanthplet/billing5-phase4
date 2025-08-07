@@ -420,10 +420,84 @@ export function MobileReturnRental() {
       setOutstandingBorrowedStock({});
       setDriverName("");
 
-      alert(`જમા ચલણ ${returnRecord.return_challan_number} સફળતાપૂર્વક બનાવવામાં આવ્યું અને ડાઉનલોડ થયું!`);
+      // Create and show success toast
+      const toastDiv = document.createElement('div');
+      toastDiv.className = 'fixed inset-0 z-50 flex items-center justify-center';
+      toastDiv.innerHTML = `
+        <div class="animate-toast-slide-up">
+          <div class="flex flex-col items-center gap-3 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl shadow-xl max-w-sm mx-4">
+            <div class="flex items-center justify-center w-12 h-12 bg-white/20 rounded-full">
+              <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div class="text-center">
+              <div class="text-base font-medium text-white">ચલણ સફળતાપૂર્વક બનાવવામાં આવ્યું!</div>
+              <div class="mt-1 text-sm text-green-100">ચલણ નંબર: ${returnRecord.return_challan_number}</div>
+            </div>
+            <div class="flex items-center justify-center w-10 h-10 bg-white/20 rounded-full">
+              <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Add animation styles
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes toast-slide-up {
+          0% { transform: scale(0.9); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-toast-slide-up {
+          animation: toast-slide-up 0.3s ease-out forwards;
+        }
+      `;
+      document.head.appendChild(style);
+      document.body.appendChild(toastDiv);
+
+      // Remove toast after 3 seconds with fade out animation
+      setTimeout(() => {
+        toastDiv.style.transition = 'all 0.3s ease-out';
+        toastDiv.style.opacity = '0';
+        toastDiv.style.transform = 'translate(-50%, 100%)';
+        setTimeout(() => {
+          document.body.removeChild(toastDiv);
+          document.head.removeChild(style);
+        }, 300);
+      }, 3000);
+
     } catch (error) {
       console.error("Error creating return challan:", error);
-      alert("જમા ચલણ બનાવવામાં ભૂલ. કૃપા કરીને ફરી પ્રયત્ન કરો.");
+      
+      // Show error toast
+      const errorToastDiv = document.createElement('div');
+      errorToastDiv.className = 'fixed inset-0 z-50 flex items-center justify-center';
+      errorToastDiv.innerHTML = `
+        <div class="animate-toast-slide-up">
+          <div class="flex flex-col items-center gap-3 px-6 py-4 bg-gradient-to-r from-red-500 to-red-600 rounded-xl shadow-xl max-w-sm mx-4">
+            <div class="flex items-center justify-center w-12 h-12 bg-white/20 rounded-full">
+              <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div class="text-base font-medium text-white text-center">જમા ચલણ બનાવવામાં ભૂલ. કૃપા કરીને ફરી પ્રયત્ન કરો.</div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(errorToastDiv);
+
+      // Remove error toast after 3 seconds
+      setTimeout(() => {
+        errorToastDiv.style.transition = 'all 0.3s ease-out';
+        errorToastDiv.style.opacity = '0';
+        errorToastDiv.style.transform = 'translate(-50%, 100%)';
+        setTimeout(() => {
+          document.body.removeChild(errorToastDiv);
+        }, 300);
+      }, 3000);
     } finally {
       setLoading(false);
     }

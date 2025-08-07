@@ -372,36 +372,57 @@ export function MobileLedgerPage() {
       </div>
 
       <div className="p-3 space-y-4">
-        {/* Blue Themed Header */}
+        {/* Enhanced Header with Stats */}
         <div className="pt-2 text-center">
-          <div className="inline-flex items-center justify-center w-10 h-10 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
-            <BookOpen className="w-5 h-5 text-white" />
+          <div className="inline-flex items-center justify-center w-12 h-12 mb-3 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
+            <BookOpen className="w-6 h-6 text-white" />
           </div>
-          <h1 className="mb-1 text-base font-bold text-gray-900">ખાતાવહી</h1>
-          <p className="text-xs text-blue-600">ગ્રાહક ભાડા ઇતિહાસ</p>
+          <h1 className="mb-2 text-xl font-bold text-gray-900">ખાતાવહી</h1>
+          <p className="text-sm text-blue-700 mb-4">ગ્રાહક ભાડા ઇતિહાસ</p>
+          
+          {/* Quick Stats */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            <div className="p-2 bg-white rounded-lg shadow-sm border border-blue-100">
+              <p className="text-xs font-medium text-blue-600">કુલ ગ્રાહકો</p>
+              <p className="text-lg font-bold text-gray-900">{clientLedgers.length}</p>
+            </div>
+            <div className="p-2 bg-white rounded-lg shadow-sm border border-blue-100">
+              <p className="text-xs font-medium text-blue-600">સક્રિય ગ્રાહકો</p>
+              <p className="text-lg font-bold text-gray-900">
+                {clientLedgers.filter(l => l.has_activity).length}
+              </p>
+            </div>
+            <div className="p-2 bg-white rounded-lg shadow-sm border border-blue-100">
+              <p className="text-xs font-medium text-blue-600">કુલ બાકી</p>
+              <p className="text-lg font-bold text-gray-900">
+                {clientLedgers.reduce((sum, l) => sum + l.total_outstanding, 0)}
+              </p>
+            </div>
+          </div>
         </div>
 
-        {/* Blue Themed Backup Button */}
-        <div className="flex justify-center">
+        {/* Search and Backup Section */}
+        <div className="space-y-3">
+          {/* Enhanced Search Bar */}
+          <div className="relative">
+            <Search className="absolute w-4 h-4 text-blue-400 transform -translate-y-1/2 left-3 top-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full py-3 pl-10 pr-3 text-sm transition-all duration-200 bg-white border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500 placeholder-blue-300"
+              placeholder="નામ, ID અથવા સાઇટથી શોધો..."
+            />
+          </div>
+
+          {/* Enhanced Backup Button */}
           <button
             onClick={handleBackupData}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl hover:scale-105"
+            className="flex items-center justify-center w-full gap-2 px-4 py-3 text-sm font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl active:scale-95"
           >
             <FileDown className="w-4 h-4" />
-            બેકઅપ
+            ડેટા બેકઅપ ડાઉનલોડ કરો
           </button>
-        </div>
-
-        {/* Blue Themed Search Bar */}
-        <div className="relative">
-          <Search className="absolute w-4 h-4 text-blue-400 transform -translate-y-1/2 left-3 top-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full py-2 pl-10 pr-3 text-sm transition-all duration-200 bg-white border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
-            placeholder="ગ્રાહક શોધો..."
-          />
         </div>
 
         {/* Blue Themed Client Cards */}
@@ -425,63 +446,89 @@ export function MobileLedgerPage() {
             
             return (
               <div key={ledger.client.id} className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200">
-                {/* Client Header - Shows કુલ grand total in બાકી */}
+                {/* Enhanced Client Header with Activity Indicator */}
                 <div 
-                  className="p-3 transition-colors cursor-pointer hover:bg-blue-50"
+                  className="relative p-4 transition-colors cursor-pointer hover:bg-blue-50"
                   onClick={() => toggleExpanded(ledger.client.id)}
                 >
+                  {/* Activity Indicator Dot */}
+                  <div className={`absolute top-4 right-4 w-2 h-2 rounded-full ${
+                    ledger.has_activity 
+                      ? 'bg-green-500 animate-pulse' 
+                      : 'bg-gray-300'
+                  }`} />
+                  
                   <div className="flex items-center justify-between">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full shadow-sm bg-gradient-to-r from-blue-500 to-indigo-500">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-center justify-center w-8 h-8 text-sm font-bold text-white rounded-full shadow-md bg-gradient-to-r from-blue-500 to-indigo-500">
                           {ledger.client.name.charAt(0).toUpperCase()}
                         </div>
-                        <h3 className="text-sm font-semibold text-gray-900 truncate">
-                          {ledger.client.name} ({ledger.client.id})
-                        </h3>
+                        <div>
+                          <h3 className="text-base font-bold text-gray-900 truncate">
+                            {ledger.client.name}
+                          </h3>
+                          <p className="text-xs font-medium text-blue-600">
+                            ID: {ledger.client.id}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 ml-8">
-                        <div className="flex items-center gap-1 text-xs text-blue-600">
-                          <MapPin className="w-3 h-3" />
-                          <span className="truncate">{ledger.client.site}</span>
-                        </div>
-                        <div className="flex items-center gap-1 text-xs text-blue-600">
-                          <Phone className="w-3 h-3" />
-                          <span>{ledger.client.mobile_number}</span>
-                        </div>
+                      <div className="flex flex-wrap items-center gap-4 ml-11">
+                        {ledger.client.site && (
+                          <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded-full">
+                            <MapPin className="w-3 h-3" />
+                            <span className="truncate max-w-[150px]">{ledger.client.site}</span>
+                          </div>
+                        )}
+                        {ledger.client.mobile_number && (
+                          <div className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded-full">
+                            <Phone className="w-3 h-3" />
+                            <span>{ledger.client.mobile_number}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2 ml-2">
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold shadow-sm ${
-                        totalOutstandingWithBorrowed > 0 
-                          ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
-                          : 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                    <div className="flex flex-col items-end gap-2 mt-3 ml-2">
+                      {/* Enhanced Status Badge */}
+                      <div className="flex items-center gap-2">
+                        <span className={`px-4 py-1.5 rounded-full text-sm font-bold shadow-lg ${
+                          totalOutstandingWithBorrowed > 0 
+                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
+                            : 'bg-gradient-to-r from-green-500 to-green-600 text-white'
+                        }`}>
+                          {totalOutstandingWithBorrowed > 0 
+                            ? `${totalOutstandingWithBorrowed} બાકી` 
+                            : 'પૂર્ણ'
+                          }
+                        </span>
+                        {/* Enhanced Download Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDownloadClientLedger(ledger);
+                          }}
+                          disabled={downloadingLedger === ledger.client.id}
+                          className="flex items-center justify-center w-10 h-10 text-white transition-all duration-200 rounded-full shadow-lg bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 hover:shadow-xl disabled:opacity-50 active:scale-95"
+                        >
+                          {downloadingLedger === ledger.client.id ? (
+                            <div className="w-4 h-4 border-2 border-white rounded-full border-t-transparent animate-spin" />
+                          ) : (
+                            <FileImage className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+                      
+                      {/* Enhanced Expand/Collapse Button */}
+                      <div className={`flex items-center justify-center w-8 h-8 transition-all duration-200 rounded-full ${
+                        expandedClient === ledger.client.id
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-blue-100 text-blue-600'
                       }`}>
-                        {totalOutstandingWithBorrowed > 0 
-                          ? `${totalOutstandingWithBorrowed} બાકી` 
-                          : 'પૂર્ણ'
-                        }
-                      </span>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDownloadClientLedger(ledger);
-                        }}
-                        disabled={downloadingLedger === ledger.client.id}
-                        className="flex items-center justify-center w-8 h-8 text-white transition-all duration-200 rounded-full shadow-lg bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 hover:shadow-xl disabled:opacity-50"
-                      >
-                        {downloadingLedger === ledger.client.id ? (
-                          <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
-                        ) : (
-                          <FileImage className="w-4 h-4" />
-                        )}
-                      </button>
-                      <div className="flex items-center justify-center w-6 h-6 bg-blue-100 rounded-full">
                         {expandedClient === ledger.client.id ? (
-                          <ChevronUp className="w-4 h-4 text-blue-600" />
+                          <ChevronUp className="w-5 h-5" />
                         ) : (
-                          <ChevronDown className="w-4 h-4 text-blue-600" />
+                          <ChevronDown className="w-5 h-5" />
                         )}
                       </div>
                     </div>

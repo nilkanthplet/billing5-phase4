@@ -12,6 +12,7 @@ interface BorrowedStockData {
 }
 
 const PLATE_SIZES = [
+  '2 X 3',
   '21 X 3', 
   '18 X 3',
   '15 X 3',
