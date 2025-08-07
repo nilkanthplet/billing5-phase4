@@ -774,8 +774,8 @@ export function MobileReturnRental() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <div className="flex-1">
+                <div className="grid grid-cols-5 gap-2">
+                  <div className="col-span-3">
                     <label className="block text-xs font-medium text-gray-700 mb-0.5">
                       <span className="flex items-center gap-1">
                         <User className="w-3 h-3 text-gray-500" />
@@ -798,12 +798,12 @@ export function MobileReturnRental() {
                       </datalist>
                     </div>
                   </div>
-
-                  <div className="flex items-end">
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-transparent mb-0.5">.</label>
                     <button
                       type="button"
                       onClick={() => setShowBorrowedStock(!showBorrowedStock)}
-                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-white transition-all rounded bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+                      className="flex items-center justify-center w-full gap-1 px-2 py-1 text-xs font-medium text-white transition-all rounded bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
                     >
                       {showBorrowedStock ? (
                         <>
