@@ -272,9 +272,16 @@ export function MobileLedgerPage() {
         plates: transaction.items.map(item => ({
           size: item.plate_size,
           quantity: item.quantity,
+          borrowed_stock: type === 'udhar' ? (item.borrowed_stock || 0) : (item.returned_borrowed_stock || 0),
           notes: item.notes || '',
         })),
-        total_quantity: transaction.items.reduce((sum, item) => sum + item.quantity, 0)
+        total_quantity: transaction.items.reduce((sum: number, item: any) => {
+          const regularQty = item.quantity || 0;
+          const borrowedQty = type === 'udhar' 
+            ? (item.borrowed_stock || 0) 
+            : (item.returned_borrowed_stock || 0);
+          return sum + regularQty + borrowedQty;
+        }, 0)
       };
 
 

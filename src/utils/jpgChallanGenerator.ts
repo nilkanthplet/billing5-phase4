@@ -209,29 +209,44 @@ function renderPlatesTable(
     const plateData = data.plates.find(p => p.size === templateSize);
     
     // Always render the row position for this plate size
-    if (plateData && plateData.quantity > 0) {
-      // Calculate combined total for this size
-      const totalForSize = plateData.quantity + (plateData.borrowed_stock || 0);
+    if (plateData && (plateData.quantity > 0 || (plateData.borrowed_stock && plateData.borrowed_stock > 0))) {
+      const regularQty = plateData.quantity || 0;
+      const borrowedQty = plateData.borrowed_stock || 0;
+      const totalForSize = regularQty + borrowedQty;
 
-      // Quantity - render the total in the quantity column
-      renderHighContrastText(
-        ctx,
-        totalForSize.toString(),
-        coords.quantity_x,
-        currentY,
-        56,  // Font size
-        'bold'
-      );
-
-      // Borrowed stock - render in borrowed column if present
-      if (plateData.borrowed_stock && plateData.borrowed_stock > 0) {
+      // For quantity column, show breakdown if there's both regular and borrowed
+      if (regularQty > 0 && borrowedQty > 0) {
         renderHighContrastText(
           ctx,
-          plateData.borrowed_stock.toString(),
+          `${regularQty}+${borrowedQty}=${totalForSize}`,
+          coords.quantity_x,
+          currentY,
+          52,  // Slightly smaller for the breakdown
+          'bold'
+        );
+      } else {
+        // Show single number if only one type
+        renderHighContrastText(
+          ctx,
+          totalForSize.toString(),
+          coords.quantity_x,
+          currentY,
+          56,
+          'bold',
+          borrowedQty > 0 ? '#FF0000' : '#000000'  // Red for borrowed-only
+        );
+      }
+
+      // Always show borrowed stock in its column when present
+      if (borrowedQty > 0) {
+        renderHighContrastText(
+          ctx,
+          borrowedQty.toString(),
           coords.borrowed_x,
           currentY,
-          56,  // Font size
-          'bold'
+          56,
+          'bold',
+          '#FF0000'  // Red color for borrowed stock
         );
       }
       
@@ -258,17 +273,17 @@ function renderTotal(
   data: ChallanData, 
   coords: TemplateCoordinates
 ) {
-  // Calculate total borrowed stock and grand total
-  const totalBorrowedStock = data.plates.reduce((sum, plate) => sum + (plate.borrowed_stock || 0), 0);
-  const grandTotal = data.total_quantity + totalBorrowedStock;
+  // Calculate the grand total
+  const grandTotal = data.plates.reduce((sum, plate) => 
+    sum + (plate.quantity || 0) + (plate.borrowed_stock || 0), 0);
 
-  // Render the grand total
+  // Render just the grand total number
   renderHighContrastText(
     ctx,
     grandTotal.toString(),
     coords.total.x,
     coords.total.y,
-    60,  // Further increased font size
+    60,
     'bold'
   );
 
@@ -284,7 +299,7 @@ function renderTotal(
     );
   }
 
-  // Render the second total with grand total
+  // Render the second total with the same grand total
   renderHighContrastText(
     ctx,
     grandTotal.toString(),
