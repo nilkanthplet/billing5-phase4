@@ -1020,29 +1020,29 @@ export function MobileReturnRental() {
               </div>
 
               {/* Enhanced Total with borrowed stock breakdown */}
-              <div className="p-3 space-y-2 bg-green-100 border border-green-200 rounded">
-                <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-green-100 border border-green-200 rounded">
+                <div className="flex items-center justify-between gap-2">
                   {/* Own Stock Returns */}
-                  <div className="p-2 bg-white border border-green-200 rounded">
+                  <div className="flex-1 p-2 bg-white border border-green-200 rounded">
                     <div className="text-xs text-center">
-                      <div className="font-medium text-green-800">પોતાની પ્લેટ પરત</div>
-                      <div className="mt-1 text-lg font-bold text-green-700">
+                      <div className="font-medium text-green-800">પોતાની પ્લેટ</div>
+                      <div className="text-lg font-bold text-green-700">
                         {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
                       </div>
                     </div>
                   </div>
 
                   {/* Borrowed Stock Returns */}
-                  <div className={`p-2 bg-white border rounded transition-all ${
+                  <div className={`flex-1 p-2 bg-white border rounded transition-all ${
                     showBorrowedStock ? 'border-purple-200' : 'border-gray-200'
                   }`}>
                     <div className="text-xs text-center">
                       <div className={`font-medium ${
                         showBorrowedStock ? 'text-purple-800' : 'text-gray-400'
                       }`}>
-                        બિજો ડેપો પ્લેટ પરત
+                        બિજો ડેપો
                       </div>
-                      <div className={`mt-1 text-lg font-bold ${
+                      <div className={`text-lg font-bold ${
                         showBorrowedStock ? 'text-purple-700' : 'text-gray-400'
                       }`}>
                         {showBorrowedStock 
@@ -1051,15 +1051,15 @@ export function MobileReturnRental() {
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Grand Total */}
-                <div className="p-2 rounded bg-gradient-to-r from-green-500 to-emerald-500">
-                  <div className="text-center">
-                    <div className="text-xs font-medium text-green-100">કુલ પરત પ્લેટ</div>
-                    <div className="text-xl font-bold text-white">
-                      {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0) +
-                       (showBorrowedStock ? Object.values(borrowedStockReturns).reduce((sum, qty) => sum + (qty || 0), 0) : 0)}
+                  {/* Grand Total */}
+                  <div className="flex-1 p-2 rounded bg-gradient-to-r from-green-500 to-emerald-500">
+                    <div className="text-center">
+                      <div className="text-xs font-medium text-green-100">કુલ પ્લેટ</div>
+                      <div className="text-lg font-bold text-white">
+                        {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0) +
+                         (showBorrowedStock ? Object.values(borrowedStockReturns).reduce((sum, qty) => sum + (qty || 0), 0) : 0)}
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -859,29 +859,29 @@ export function MobileIssueRental() {
               </div>
 
               {/* Enhanced Total with borrowed stock breakdown */}
-              <div className="p-3 space-y-2 border border-red-200 rounded bg-red-50">
-                <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 border border-red-200 rounded bg-red-50">
+                <div className="flex items-center justify-between gap-2">
                   {/* Own Stock Issues */}
-                  <div className="p-2 bg-white border border-red-200 rounded">
+                  <div className="flex-1 p-2 bg-white border border-red-200 rounded">
                     <div className="text-xs text-center">
-                      <div className="font-medium text-red-800">પોતાની પ્લેટ ઇશ્યૂ</div>
-                      <div className="mt-1 text-lg font-bold text-red-700">
+                      <div className="font-medium text-red-800">પોતાની પ્લેટ</div>
+                      <div className="text-lg font-bold text-red-700">
                         {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0)}
                       </div>
                     </div>
                   </div>
 
                   {/* Borrowed Stock Issues */}
-                  <div className={`p-2 bg-white border rounded transition-all ${
+                  <div className={`flex-1 p-2 bg-white border rounded transition-all ${
                     showBorrowedColumn ? 'border-blue-200' : 'border-gray-200'
                   }`}>
                     <div className="text-xs text-center">
                       <div className={`font-medium ${
                         showBorrowedColumn ? 'text-blue-800' : 'text-gray-400'
                       }`}>
-                         બિજો ડેપો પ્લેટ ઇશ્યૂ
+                        બિજો ડેપો
                       </div>
-                      <div className={`mt-1 text-lg font-bold ${
+                      <div className={`text-lg font-bold ${
                         showBorrowedColumn ? 'text-blue-700' : 'text-gray-400'
                       }`}>
                         {showBorrowedColumn 
@@ -890,15 +890,15 @@ export function MobileIssueRental() {
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Grand Total */}
-                <div className="p-2 rounded bg-gradient-to-r from-red-500 to-orange-500">
-                  <div className="text-center">
-                    <div className="text-xs font-medium text-red-100">કુલ ઇશ્યૂ પ્લેટ</div>
-                    <div className="text-xl font-bold text-white">
-                      {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0) +
-                       (showBorrowedColumn ? Object.values(borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0) : 0)}
+                  {/* Grand Total */}
+                  <div className="flex-1 p-2 rounded bg-gradient-to-r from-red-500 to-orange-500">
+                    <div className="text-center">
+                      <div className="text-xs font-medium text-red-100">કુલ પ્લેટ</div>
+                      <div className="text-lg font-bold text-white">
+                        {Object.values(quantities).reduce((sum, qty) => sum + (qty || 0), 0) +
+                         (showBorrowedColumn ? Object.values(borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0) : 0)}
+                      </div>
                     </div>
                   </div>
                 </div>
