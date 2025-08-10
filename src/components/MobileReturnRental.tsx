@@ -332,7 +332,7 @@ export function MobileReturnRental() {
         quantities[size] > 0 || borrowedStockReturns[size] > 0
       );
       if (validItems.length === 0) {
-        alert("ઓછામાં ઓછી એક પ્લેટની માત્રા દાખલ કરો.");
+        alert("ઓછામાં ઓછી એક પ્લેટની માત્રા અથવા બિજો ડેપો માત્રા દાખલ કરો.");
         return;
       }
 
@@ -354,7 +354,7 @@ export function MobileReturnRental() {
       const lineItems = validItems.map(size => ({
         return_id: returnRecord.id,
         plate_size: size,
-        returned_quantity: quantities[size],
+        returned_quantity: quantities[size] || 0,
         damaged_quantity: damagedQuantities[size] || 0,
         lost_quantity: lostQuantities[size] || 0,
         returned_borrowed_stock: borrowedStockReturns[size] || 0,
@@ -372,10 +372,11 @@ export function MobileReturnRental() {
 
       // Calculate totals
       const regularTotal = validItems.reduce((sum, size) => sum + (quantities[size] || 0), 0);
+      const borrowedStockTotal = validItems.reduce((sum, size) => sum + (borrowedStockReturns[size] || 0), 0);
       const damagedTotal = validItems.reduce((sum, size) => sum + (damagedQuantities[size] || 0), 0);
       const lostTotal = validItems.reduce((sum, size) => sum + (lostQuantities[size] || 0), 0);
-      // Calculate grand total (borrowed stock is tracked separately)
-      const grandTotal = regularTotal + damagedTotal + lostTotal;
+      // Calculate grand total including borrowed stock
+      const grandTotal = regularTotal + borrowedStockTotal + damagedTotal + lostTotal;
 
       // Prepare challan data for PDF
       const newChallanData: ChallanData = {
@@ -389,14 +390,18 @@ export function MobileReturnRental() {
           mobile: selectedClient!.mobile_number || ""
         },
         driver_name: driverName || undefined,
-        plates: validItems.map(size => ({
-          size,
-          quantity: quantities[size] || 0,
-          borrowed_stock: borrowedStockReturns[size] || 0,
-          damaged_quantity: damagedQuantities[size] || 0,
-          lost_quantity: lostQuantities[size] || 0,
-          notes: notes[size] || "",
-        })),
+        plates: validItems.map(size => {
+          const regularQty = quantities[size] || 0;
+          const borrowedQty = borrowedStockReturns[size] || 0;
+          return {
+            size,
+            quantity: regularQty,
+            borrowed_stock: borrowedQty,
+            damaged_quantity: damagedQuantities[size] || 0,
+            lost_quantity: lostQuantities[size] || 0,
+            notes: notes[size] || "",
+          };
+        }),
         total_quantity: grandTotal
       };
 

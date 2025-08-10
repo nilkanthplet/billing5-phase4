@@ -28,6 +28,13 @@ type Return = Database['public']['Tables']['returns']['Row'];
 type ReturnLineItem = Database['public']['Tables']['return_line_items']['Row'];
 
 
+interface BorrowedStockBalance {
+  plate_size: string;
+  issued: number;
+  returned: number;
+  outstanding: number;
+}
+
 interface PlateBalance {
   plate_size: string;
   total_borrowed: number;
@@ -39,7 +46,9 @@ interface PlateBalance {
 interface ClientLedger {
   client: Client;
   plate_balances: PlateBalance[];
+  borrowed_stock_balances: BorrowedStockBalance[];
   total_outstanding: number;
+  borrowed_outstanding: number;
   has_activity: boolean;
   all_transactions: Array<{
     type: 'udhar' | 'jama';

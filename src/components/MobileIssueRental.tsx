@@ -203,9 +203,11 @@ export function MobileIssueRental() {
         return;
       }
 
-      const validItems = PLATE_SIZES.filter(size => quantities[size] > 0);
+      const validItems = PLATE_SIZES.filter(size => 
+        (quantities[size] > 0) || (borrowedStock[size] > 0)
+      );
       if (validItems.length === 0) {
-        alert("ઓછામાં ઓછી એક પ્લેટની માત્રા દાખલ કરો.");
+        alert("ઓછામાં ઓછી એક પ્લેટની માત્રા અથવા બિજો ડેપો માત્રા દાખલ કરો.");
         return;
       }
 
@@ -225,7 +227,7 @@ export function MobileIssueRental() {
       const lineItems = validItems.map(size => ({
         challan_id: challan.id,
         plate_size: size,
-        borrowed_quantity: quantities[size],
+        borrowed_quantity: quantities[size] || 0,
         borrowed_stock: borrowedStock[size] || 0,
         partner_stock_notes: notes[size]?.trim() || null
       }));
@@ -236,6 +238,28 @@ export function MobileIssueRental() {
 
       if (lineItemsError) throw lineItemsError;
 
+      // Update stock quantities only for regular plates (not borrowed stock)
+      for (const size of validItems) {
+        const regularQuantity = quantities[size] || 0;
+        if (regularQuantity > 0) {
+          const stockItem = stockData.find(s => s.plate_size === size);
+          if (stockItem) {
+            const newAvailableQuantity = Math.max(0, stockItem.available_quantity - regularQuantity);
+            const newOnRentQuantity = stockItem.on_rent_quantity + regularQuantity;
+            
+            const { error } = await supabase
+              .from('stock')
+              .update({
+                available_quantity: newAvailableQuantity,
+                on_rent_quantity: newOnRentQuantity,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', stockItem.id);
+
+            if (error) throw error;
+          }
+        }
+      }
       const newChallanData: ChallanData = {
         type: "issue",
         challan_number: challan.challan_number,
@@ -247,13 +271,17 @@ export function MobileIssueRental() {
           mobile: selectedClient!.mobile_number || ""
         },
         driver_name: driverName,
-        plates: validItems.map(size => ({
-          size,
-          quantity: quantities[size],
-          borrowed_stock: borrowedStock[size] || 0,
-          notes: notes[size] || "",
-        })),
-        total_quantity: validItems.reduce((sum, size) => sum + quantities[size], 0)
+        plates: validItems.map(size => {
+          const regularQty = quantities[size] || 0;
+          const borrowedQty = borrowedStock[size] || 0;
+          return {
+            size,
+            quantity: regularQty,
+            borrowed_stock: borrowedQty,
+            notes: notes[size] || "",
+          };
+        }),
+        total_quantity: validItems.reduce((sum, size) => sum + (quantities[size] || 0), 0)
       };
 
       setChallanData(newChallanData);
@@ -264,6 +292,7 @@ export function MobileIssueRental() {
 
       setQuantities({});
       setNotes({});
+      setBorrowedStock({});
       setChallanNumber("");
       setDriverName("");
       setSelectedClient(null);

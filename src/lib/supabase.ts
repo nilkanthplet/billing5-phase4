@@ -109,6 +109,7 @@ export type Database = {
           status: string
           created_at: string
           borrowed_stock: number
+          partner_stock_notes: string | null
         }
         Insert: {
           id?: number
@@ -119,6 +120,7 @@ export type Database = {
           status?: string
           created_at?: string
           borrowed_stock?: number
+          partner_stock_notes?: string | null
         }
         Update: {
           id?: number
@@ -129,6 +131,7 @@ export type Database = {
           status?: string
           created_at?: string
           borrowed_stock?: number
+          partner_stock_notes?: string | null
         }
       }
       returns: {
@@ -168,6 +171,7 @@ export type Database = {
           damaged_quantity: number
           lost_quantity: number
           returned_borrowed_stock: number
+          returned_borrowed_stock: number
         }
         Insert: {
           id?: number
@@ -179,6 +183,7 @@ export type Database = {
           damaged_quantity?: number
           lost_quantity?: number
           returned_borrowed_stock?: number
+          returned_borrowed_stock?: number
         }
         Update: {
           id?: number
@@ -189,6 +194,7 @@ export type Database = {
           created_at?: string
           damaged_quantity?: number
           lost_quantity?: number
+          returned_borrowed_stock?: number
           returned_borrowed_stock?: number
         }
       }
