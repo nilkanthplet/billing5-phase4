@@ -479,22 +479,6 @@ export function MobileLedgerPage() {
         {/* Compact Client Cards */}
         <div className="space-y-2">
           {filteredLedgers.map((ledger) => {
-            // Calculate accurate total outstanding
-            const issuedBorrowed = ledger.all_transactions
-              .filter(t => t.type === 'udhar')
-              .reduce((sum, t) => {
-                return sum + t.items.reduce((subSum, item) => subSum + (item.borrowed_stock || 0), 0);
-              }, 0);
-            
-            const returnedBorrowed = ledger.all_transactions
-              .filter(t => t.type === 'jama')
-              .reduce((sum, t) => {
-                return sum + t.items.reduce((subSum, item) => subSum + (item.returned_borrowed_stock || 0), 0);
-              }, 0);
-            
-            const netBorrowedStock = issuedBorrowed - returnedBorrowed;
-            const totalOutstandingWithBorrowed = ledger.total_outstanding + netBorrowedStock;
-            
             return (
               <div key={ledger.client.id} className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200">
                 {/* Compact Client Header */}
@@ -542,17 +526,33 @@ export function MobileLedgerPage() {
                     
                     <div className="flex flex-col items-end gap-1.5 mt-2 ml-2">
                       {/* Compact Status Badge */}
-                      <div className="flex items-center gap-1.5">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold shadow-lg ${
-                          totalOutstandingWithBorrowed > 0 
-                            ? 'bg-gradient-to-r from-red-500 to-red-600 text-white' 
-                            : 'bg-gradient-to-r from-green-500 to-green-600 text-white'
-                        }`}>
-                          {totalOutstandingWithBorrowed > 0 
-                            ? `${totalOutstandingWithBorrowed} બાકી` 
-                            : 'પૂર્ણ'
-                          }
-                        </span>
+                      <div className="flex flex-col items-end gap-1.5">
+                        {/* Stock Badge */}
+                        {(() => {
+                          const borrowedStockBalance = ledger.all_transactions.reduce((bSum, t) => {
+                            if (t.type === 'udhar') {
+                              return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
+                            } else {
+                              return bSum - t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0);
+                            }
+                          }, 0);
+                          
+                          const totalBalance = ledger.total_outstanding + borrowedStockBalance;
+                          
+                          return totalBalance > 0 ? (
+                            <div className={`px-2 py-1 rounded-full text-xs font-bold shadow-lg bg-gradient-to-r from-red-500 to-red-600 text-white`}>
+                              <div className="text-center">
+                                <div>{totalBalance} કુલ બાકી</div>
+                                <div className="text-[10px] mt-0.5 font-normal">
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="px-2 py-1 text-xs font-bold text-white rounded-full shadow-lg bg-gradient-to-r from-green-500 to-green-600">
+                              પૂર્ણ
+                            </span>
+                          );
+                        })()}
                         {/* Compact Download Button */}
                         <button
                           onClick={(e) => {
@@ -694,16 +694,9 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
   };
 
 
-  // Helper function to format plate display - shows COMBINED total with borrowed stock and notes in ONE LINE sup tag
+  // Helper function to format plate display - shows normal stock in blue and borrowed in red sup
   const formatPlateDisplay = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const quantity = getTransactionQuantity(transaction, plateSize);
-    
-    if (quantity === 0) {
-      return null;
-    }
-
-
-    const prefix = transaction.type === 'udhar' ? '+' : '-';
     
     let borrowedStock = 0;
     if (transaction.type === 'udhar') {
@@ -712,36 +705,36 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
       borrowedStock = getReturnedBorrowedStock(transaction, plateSize);
     }
 
+    if (quantity === 0 && borrowedStock === 0) {
+      return null;
+    }
 
+    const prefix = transaction.type === 'udhar' ? '+' : '-';
     const notes = getNotes(transaction, plateSize);
     
-    // Show combined total (quantity + borrowed stock) as main display
-    const combinedTotal = quantity + borrowedStock;
-    const displayQuantity = `${prefix}${combinedTotal}`;
-
-
-    // Create single line superscript content
-    const supContent = [];
-    if (borrowedStock > 0) {
-      supContent.push(`+${borrowedStock}`);
-    }
-    if (notes) {
-      supContent.push(notes);
-    }
-
-
-    // Return JSX element with combined total and single line sup tag
     return (
-      <span className={`font-bold text-xs ${
-        transaction.type === 'udhar' ? 'text-yellow-700' : 'text-green-700'
-      }`}>
-        {displayQuantity}
-        {supContent.length > 0 && (
-          <sup className="text-xs font-bold text-red-600 bg-red-100 px-0.5 py-0.5 rounded ml-0.5 whitespace-nowrap" style={{fontSize: '7px'}}>
-            {supContent.join(' ')}
+      <div className="inline-block">
+        {/* Regular plates in dark blue */}
+        {quantity > 0 && (
+          <span className="text-xs font-bold text-blue-800">
+            {prefix}{quantity}
+          </span>
+        )}
+        
+        {/* Borrowed stock in red sup tag */}
+        {borrowedStock > 0 && (
+          <sup className="ml-0.5 font-bold text-red-600" style={{fontSize: '9px'}}>
+            {prefix}{borrowedStock}
           </sup>
         )}
-      </span>
+        
+        {/* Notes in smaller sup tag if needed */}
+        {notes && (
+          <sup className="ml-0.5 text-gray-500" style={{fontSize: '8px'}}>
+            ({notes})
+          </sup>
+        )}
+      </div>
     );
   };
 
@@ -801,7 +794,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                   <div className="text-xs">કુલ</div>
                 </th>
                 {allPlateSizes.map(size => (
-                  <th key={size} className="px-1 py-1 text-center font-bold min-w-[40px] border-l border-blue-400">
+                  <th key={size} className="px-1 py-1 text-center font-bold min-w-[60px] border-l border-blue-400">
                     <div className="text-xs">{size}</div>
                   </th>
                 ))}
@@ -824,20 +817,46 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                     {getAccurateGrandTotal()}
                   </div>
                 </td>
-                {/* Show ALL plate sizes, even blank ones */}
+                {/* Show ALL plate sizes with borrowed stock in red sup tag */}
                 {allPlateSizes.map(size => {
                   const balance = getCurrentBalance(size);
+                  
+                  // Calculate borrowed stock balance for this size
+                  const borrowedIssued = ledger.all_transactions
+                    .filter(t => t.type === 'udhar')
+                    .reduce((sum, t) => {
+                      const item = t.items.find(i => i.plate_size === size);
+                      return sum + (item?.borrowed_stock || 0);
+                    }, 0);
+                    
+                  const borrowedReturned = ledger.all_transactions
+                    .filter(t => t.type === 'jama')
+                    .reduce((sum, t) => {
+                      const item = t.items.find(i => i.plate_size === size);
+                      return sum + (item?.returned_borrowed_stock || 0);
+                    }, 0);
+                    
+                  const borrowedBalance = borrowedIssued - borrowedReturned;
+                  const totalBalance = (balance || 0) + (borrowedBalance || 0);
+                  
                   return (
                     <td key={size} className="px-1 py-1 text-center border-l border-blue-200">
-                      {balance !== 0 ? (
-                        <span className={`font-bold text-xs ${
-                          balance > 0 ? 'text-red-600' : 'text-green-600'
-                        }`}>
-                          {balance}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-blue-400">-</span>
-                      )}
+                      <div className="inline-block">
+                        {balance !== 0 || borrowedBalance > 0 ? (
+                          <div className="inline-block">
+                            <span className="text-xs font-bold text-blue-800">
+                              {totalBalance}
+                            </span>
+                            {borrowedBalance > 0 && (
+                              <sup className="ml-0.5 font-bold text-red-600" style={{fontSize: '9px'}}>
+                                {borrowedBalance}
+                              </sup>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-blue-400">-</span>
+                        )}
+                      </div>
                     </td>
                   );
                 })}
@@ -934,15 +953,15 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
           <div className="flex flex-wrap justify-center gap-2 text-xs">
             <div className="flex items-center gap-1">
               <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full shadow-sm"></div>
-              <span className="font-medium text-blue-700">ઉધાર (Issue)</span>
+              <span className="font-medium text-blue-700">ઉધાર</span>
             </div>
             <div className="flex items-center gap-1">
               <div className="w-2.5 h-2.5 bg-green-400 rounded-full shadow-sm"></div>
-              <span className="font-medium text-blue-700">વસુલ (Return)</span>
+              <span className="font-medium text-blue-700">જમા</span>
             </div>
             <div className="flex items-center gap-1">
               <FileImage className="w-2.5 h-2.5 text-blue-600" />
-              <span className="font-medium text-blue-700">લેજર ડાઉનલોડ</span>
+              <span className="font-medium text-blue-700">ખાતાવહી ડાઉનલોડ</span>
             </div>
           </div>
         </div>
