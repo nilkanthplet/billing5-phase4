@@ -1,3 +1,4 @@
+// MobileLedgerPage.tsx
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/supabase';
@@ -20,13 +21,11 @@ import { generateJPGChallan, downloadJPGChallan } from '../../utils/jpgChallanGe
 import { ChallanData } from '../challans/types';
 import { generateClientLedgerJPG, downloadClientLedgerJPG, ClientLedgerData } from '../../utils/clientLedgerGenerator';
 
-
 type Client = Database['public']['Tables']['clients']['Row'];
 type Challan = Database['public']['Tables']['challans']['Row'];
 type ChallanItem = Database['public']['Tables']['challan_items']['Row'];
 type Return = Database['public']['Tables']['returns']['Row'];
 type ReturnLineItem = Database['public']['Tables']['return_line_items']['Row'];
-
 
 interface BorrowedStockBalance {
   plate_size: string;
@@ -41,7 +40,6 @@ interface PlateBalance {
   total_returned: number;
   outstanding: number;
 }
-
 
 interface ClientLedger {
   client: Client;
@@ -67,12 +65,39 @@ interface ClientLedger {
   }>;
 }
 
-
 const PLATE_SIZES = [
   '2 X 3', '21 X 3', '18 X 3', '15 X 3', '12 X 3',
   '9 X 3', 'પતરા', '2 X 2', '2 ફુટ'
 ];
 
+// Simple CSV Export Function
+const exportToCSV = (data: any[], filename: string) => {
+  // Create CSV content
+  const csvContent = data.map(row => 
+    Object.values(row)
+      .map(value => `"${value}"`) // Wrap values in quotes
+      .join(',')
+  ).join('\n');
+
+  // Create headers
+  const headers = Object.keys(data[0]).map(key => `"${key}"`).join(',');
+  const finalCSV = headers + '\n' + csvContent;
+
+  // Create and download file
+  const blob = new Blob([finalCSV], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute('href', url);
+  link.setAttribute('download', filename);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  URL.revokeObjectURL(url);
+};
 
 export function MobileLedgerPage() {
   const [clientLedgers, setClientLedgers] = useState<ClientLedger[]>([]);
@@ -82,7 +107,7 @@ export function MobileLedgerPage() {
   const [downloading, setDownloading] = useState<string | null>(null);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [downloadingLedger, setDownloadingLedger] = useState<string | null>(null);
-
+  const [exportingCSV, setExportingCSV] = useState(false);
 
   useEffect(() => {
     fetchClientLedgers();
@@ -94,7 +119,6 @@ export function MobileLedgerPage() {
       })
       .subscribe();
 
-
     const returnsSubscription = supabase
       .channel('returns_changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'returns' }, () => {
@@ -102,13 +126,11 @@ export function MobileLedgerPage() {
       })
       .subscribe();
 
-
     return () => {
       challanSubscription.unsubscribe();
       returnsSubscription.unsubscribe();
     };
   }, []);
-
 
   const fetchClientLedgers = async () => {
     try {
@@ -117,32 +139,25 @@ export function MobileLedgerPage() {
         .select('*')
         .order('id');
 
-
       if (clientsError) throw clientsError;
-
 
       const { data: challans, error: challansError } = await supabase
         .from('challans')
         .select(`*, challan_items (*)`)
         .order('created_at', { ascending: false });
 
-
       if (challansError) throw challansError;
-
 
       const { data: returns, error: returnsError } = await supabase
         .from('returns')
         .select(`*, return_line_items (*)`)
         .order('created_at', { ascending: false });
 
-
       if (returnsError) throw returnsError;
-
 
       const ledgers: ClientLedger[] = clients.map(client => {
         const clientChallans = challans.filter(c => c.client_id === client.id);
         const clientReturns = returns.filter(r => r.client_id === client.id);
-
 
         const plateBalanceMap = new Map<string, PlateBalance>();
         
@@ -156,7 +171,6 @@ export function MobileLedgerPage() {
           });
         });
 
-
         clientChallans.forEach(challan => {
           challan.challan_items.forEach(item => {
             const existing = plateBalanceMap.get(item.plate_size);
@@ -165,7 +179,6 @@ export function MobileLedgerPage() {
             }
           });
         });
-
 
         clientReturns.forEach(returnRecord => {
           returnRecord.return_line_items.forEach(item => {
@@ -176,7 +189,6 @@ export function MobileLedgerPage() {
           });
         });
 
-
         // Always return ALL plate sizes in correct order
         const plate_balances = PLATE_SIZES.map(size => {
           const balance = plateBalanceMap.get(size)!;
@@ -186,9 +198,7 @@ export function MobileLedgerPage() {
           };
         });
 
-
         const total_outstanding = plate_balances.reduce((sum, balance) => sum + balance.outstanding, 0);
-
 
         const allTransactions = [
           ...clientChallans.map(challan => ({
@@ -221,9 +231,7 @@ export function MobileLedgerPage() {
           }))
         ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-
         const has_activity = clientChallans.length > 0 || clientReturns.length > 0;
-
 
         return {
           client,
@@ -234,7 +242,6 @@ export function MobileLedgerPage() {
         };
       });
 
-
       setClientLedgers(ledgers);
     } catch (error) {
       console.error('Error fetching client ledgers:', error);
@@ -243,11 +250,9 @@ export function MobileLedgerPage() {
     }
   };
 
-
   const toggleExpanded = (clientId: string) => {
     setExpandedClient(expandedClient === clientId ? null : clientId);
   };
-
 
   const handleDownloadChallan = async (transaction: any, type: 'udhar' | 'jama') => {
     try {
@@ -256,7 +261,6 @@ export function MobileLedgerPage() {
       
       const client = clientLedgers.find(ledger => ledger.client.id === transaction.client_id)?.client;
       if (!client) throw new Error('Client not found');
-
 
       const challanDataForPDF: ChallanData = {
         type: type === 'udhar' ? 'issue' : 'return',
@@ -284,14 +288,11 @@ export function MobileLedgerPage() {
         }, 0)
       };
 
-
       setChallanData(challanDataForPDF);
       await new Promise(resolve => setTimeout(resolve, 500));
 
-
       const jpgDataUrl = await generateJPGChallan(challanDataForPDF);
       downloadJPGChallan(jpgDataUrl, `${type}-challan-${challanDataForPDF.challan_number}`);
-
 
       setChallanData(null);
     } catch (error) {
@@ -302,60 +303,57 @@ export function MobileLedgerPage() {
     }
   };
 
-
+  // Simplified CSV Export Function
   const handleBackupData = async () => {
     try {
-      const csvRows = [];
-      const headers = [
-        'Client ID', 'Client Name', 'Site', 'Mobile Number', 'Total Outstanding Plates',
-        'Plate Size', 'Total Issued', 'Total Returned', 'Current Balance',
-        'Total Transactions', 'Last Activity Date'
-      ];
-      csvRows.push(headers.join(','));
+      setExportingCSV(true);
+      
+      // Prepare simplified data for CSV export
+      const csvData = clientLedgers.map(ledger => {
+        // Calculate borrowed stock balance
+        const borrowedIssued = ledger.all_transactions
+          .filter(t => t.type === 'udhar')
+          .reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0), 0);
+        
+        const borrowedReturned = ledger.all_transactions
+          .filter(t => t.type === 'jama')
+          .reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0), 0);
+        
+        const borrowedOutstanding = borrowedIssued - borrowedReturned;
+        const totalOutstanding = ledger.total_outstanding + borrowedOutstanding;
 
-
-      clientLedgers.forEach(ledger => {
-        if (!ledger.has_activity) {
-          csvRows.push([
-            `"${ledger.client.id}"`, `"${ledger.client.name}"`, `"${ledger.client.site}"`,
-            `"${ledger.client.mobile_number}"`, '0', 'No Activity', '0', '0', '0', '0', 'Never'
-          ].join(','));
-        } else {
-          ledger.plate_balances.forEach(balance => {
-            const lastActivityDate = ledger.all_transactions.length > 0 
-              ? new Date(ledger.all_transactions[0].date).toLocaleDateString('en-GB')
-              : 'Never';
-              
-            csvRows.push([
-              `"${ledger.client.id}"`, `"${ledger.client.name}"`, `"${ledger.client.site}"`,
-              `"${ledger.client.mobile_number}"`, ledger.total_outstanding.toString(),
-              `"${balance.plate_size}"`, balance.total_borrowed.toString(),
-              balance.total_returned.toString(), balance.outstanding.toString(),
-              ledger.all_transactions.length.toString(), `"${lastActivityDate}"`
-            ].join(','));
-          });
-        }
+        return {
+          'Client ID': ledger.client.id,
+          'Client Name': ledger.client.name,
+          'Site': ledger.client.site || 'N/A',
+          'Mobile': ledger.client.mobile_number || 'N/A',
+          'Total Outstanding': totalOutstanding,
+          'Regular Outstanding': ledger.total_outstanding,
+          'Borrowed Stock Outstanding': borrowedOutstanding,
+          'Total Transactions': ledger.all_transactions.length,
+          'Last Activity': ledger.all_transactions.length > 0 
+            ? new Date(ledger.all_transactions[0].date).toLocaleDateString('en-GB')
+            : 'Never',
+          'Has Activity': ledger.has_activity ? 'Yes' : 'No'
+        };
       });
 
+      // Generate filename with current date
+      const today = new Date();
+      const dateString = today.toISOString().split('T')[0];
+      const filename = `ledger-backup-${dateString}.csv`;
 
-      const csvContent = csvRows.join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `ledger-backup-${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      // Export to CSV
+      exportToCSV(csvData, filename);
       
-      alert('Backup exported successfully!');
+      alert('✅ CSV Backup exported successfully!');
     } catch (error) {
-      console.error('Error creating backup:', error);
-      alert('Error creating backup. Please try again.');
+      console.error('Error creating CSV backup:', error);
+      alert('❌ Error creating backup. Please try again.');
+    } finally {
+      setExportingCSV(false);
     }
   };
-
 
   const handleDownloadClientLedger = async (ledger: ClientLedger) => {
     try {
@@ -374,7 +372,6 @@ export function MobileLedgerPage() {
         generated_date: new Date().toISOString()
       };
 
-
       const jpgDataUrl = await generateClientLedgerJPG(ledgerData);
       downloadClientLedgerJPG(jpgDataUrl, `ledger-${ledger.client.id}-${ledger.client.name.replace(/\s+/g, '-')}`);
       
@@ -386,13 +383,11 @@ export function MobileLedgerPage() {
     }
   };
 
-
   const filteredLedgers = clientLedgers.filter(ledger =>
     ledger.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     ledger.client.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     ledger.client.site.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
 
   if (loading) {
     return (
@@ -413,7 +408,6 @@ export function MobileLedgerPage() {
     );
   }
 
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
       {/* Hidden Printable Challan */}
@@ -424,7 +418,6 @@ export function MobileLedgerPage() {
           </div>
         )}
       </div>
-
 
       <div className="p-4 space-y-4">
         {/* Compact Header with Stats */}
@@ -456,7 +449,6 @@ export function MobileLedgerPage() {
           </div>
         </div>
 
-
         {/* Compact Search and Backup Section */}
         <div className="space-y-2">
           {/* Compact Search Bar */}
@@ -471,17 +463,25 @@ export function MobileLedgerPage() {
             />
           </div>
 
-
-          {/* Compact Backup Button */}
+          {/* Enhanced Backup Button with Loading State */}
           <button
             onClick={handleBackupData}
-            className="flex items-center justify-center w-full gap-2 px-3 py-2 text-xs font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl active:scale-95"
+            disabled={exportingCSV}
+            className="flex items-center justify-center w-full gap-2 px-3 py-2 text-xs font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl active:scale-95 disabled:opacity-50"
           >
-            <FileDown className="w-3 h-3" />
-            ડેટા બેકઅપ ડાઉનલોડ કરો
+            {exportingCSV ? (
+              <>
+                <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
+                CSV બનાવી રહ્યું છે...
+              </>
+            ) : (
+              <>
+                <FileDown className="w-3 h-3" />
+                CSV બેકઅપ ડાઉનલોડ કરો
+              </>
+            )}
           </button>
         </div>
-
 
         {/* Compact Client Cards */}
         <div className="space-y-2">
@@ -593,7 +593,6 @@ export function MobileLedgerPage() {
                   </div>
                 </div>
 
-
                 {/* Compact Expanded Details */}
                 {expandedClient === ledger.client.id && (
                   <div className="border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -617,7 +616,6 @@ export function MobileLedgerPage() {
             );
           })}
 
-
           {filteredLedgers.length === 0 && !loading && (
             <div className="py-6 text-center bg-white border-2 border-blue-100 shadow-lg rounded-xl">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
@@ -637,7 +635,6 @@ export function MobileLedgerPage() {
   );
 }
 
-
 // Compact Activity Table Component
 interface AllSizesActivityTableProps {
   ledger: ClientLedger;
@@ -645,46 +642,38 @@ interface AllSizesActivityTableProps {
   downloading: string | null;
 }
 
-
 function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSizesActivityTableProps) {
   const allPlateSizes = PLATE_SIZES;
-
 
   const getCurrentBalance = (plateSize: string) => {
     const balance = ledger.plate_balances.find(b => b.plate_size === plateSize);
     return balance?.outstanding || 0;
   };
 
-
   const getTransactionQuantity = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const item = transaction.items.find(i => i.plate_size === plateSize);
     return item?.quantity || 0;
   };
-
 
   const getBorrowedStock = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const item = transaction.items.find(i => i.plate_size === plateSize);
     return item?.borrowed_stock || 0;
   };
 
-
   const getReturnedBorrowedStock = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const item = transaction.items.find(i => i.plate_size === plateSize);
     return item?.returned_borrowed_stock || 0;
   };
-
 
   const getNotes = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const item = transaction.items.find(i => i.plate_size === plateSize);
     return item?.notes || '';
   };
 
-
   // Helper function to check if transaction has borrowed stock
   const hasBorrowedStock = (transaction: typeof ledger.all_transactions[0]) => {
     return transaction.type === 'udhar' && transaction.items.some(item => (item.borrowed_stock || 0) > 0);
   };
-
 
   // Helper function to calculate total INCLUDING borrowed stock for કુલ column
   const getTransactionTotalWithBorrowed = (transaction: typeof ledger.all_transactions[0]) => {
@@ -699,7 +688,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     }
     return regularTotal;
   };
-
 
   // Helper function to format plate display - shows normal stock in blue and borrowed in red sup
   const formatPlateDisplay = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
@@ -745,7 +733,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     );
   };
 
-
   // Calculate net borrowed stock (issued borrowed - returned borrowed)
   const getNetBorrowedStock = () => {
     const issuedBorrowed = ledger.all_transactions
@@ -762,7 +749,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     
     return issuedBorrowed - returnedBorrowed;
   };
-
 
   // Calculate accurate grand total
   const getAccurateGrandTotal = () => {
@@ -872,7 +858,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                 </td>
               </tr>
 
-
               {/* Compact Transaction Rows */}
               {ledger.all_transactions.length === 0 ? (
                 <tr>
@@ -919,7 +904,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                       </div>
                     </td>
 
-
                     {/* Show ALL plate sizes with COMBINED totals and notes in ONE LINE smaller sup tag */}
                     {allPlateSizes.map(size => {
                       const formattedDisplay = formatPlateDisplay(transaction, size);
@@ -954,7 +938,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
           </table>
         </div>
 
-
         {/* Compact Blue Themed Legend */}
         <div className="p-2 border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex flex-wrap justify-center gap-2 text-xs">
@@ -976,6 +959,5 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     </div>
   );
 }
-
 
 export default MobileLedgerPage;
