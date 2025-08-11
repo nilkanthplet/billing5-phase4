@@ -1,4 +1,4 @@
-// MobileLedgerPage.tsx
+// MobileLedgerPage.tsx - Fixed CSV Export
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/supabase';
@@ -70,33 +70,81 @@ const PLATE_SIZES = [
   '9 X 3', 'પતરા', '2 X 2', '2 ફુટ'
 ];
 
-// Simple CSV Export Function
-const exportToCSV = (data: any[], filename: string) => {
-  // Create CSV content
-  const csvContent = data.map(row => 
-    Object.values(row)
-      .map(value => `"${value}"`) // Wrap values in quotes
-      .join(',')
-  ).join('\n');
+// Fixed and Simplified CSV Export Function
+const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
+  try {
+    const csvRows: string[] = [];
+    
+    // Add UTF-8 BOM for proper Gujarati character support
+    const BOM = '\uFEFF';
+    
+    // Header
+    csvRows.push('Client Name,Client ID,Site,Mobile,Total Outstanding,Regular Outstanding,Borrowed Outstanding,Total Transactions,Last Activity,Has Activity');
+    
+    // Process each client
+    clientLedgers.forEach((ledger) => {
+      // Calculate borrowed stock balance
+      const borrowedStockBalance = ledger.all_transactions.reduce((bSum, t) => {
+        if (t.type === 'udhar') {
+          return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
+        } else {
+          return bSum - t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0);
+        }
+      }, 0);
 
-  // Create headers
-  const headers = Object.keys(data[0]).map(key => `"${key}"`).join(',');
-  const finalCSV = headers + '\n' + csvContent;
+      const totalOutstanding = ledger.total_outstanding + borrowedStockBalance;
+      const lastActivity = ledger.all_transactions.length > 0 
+        ? new Date(ledger.all_transactions[0].date).toLocaleDateString('en-GB')
+        : 'Never';
 
-  // Create and download file
-  const blob = new Blob([finalCSV], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  
-  link.setAttribute('href', url);
-  link.setAttribute('download', filename);
-  link.style.visibility = 'hidden';
-  
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  
-  URL.revokeObjectURL(url);
+      // Clean data for CSV
+      const cleanText = (text: string | null | undefined) => {
+        if (!text) return 'N/A';
+        return String(text).replace(/"/g, '""'); // Escape quotes
+      };
+
+      // Add client summary row
+      csvRows.push([
+        `"${cleanText(ledger.client.name)}"`,
+        `"${cleanText(ledger.client.id)}"`,
+        `"${cleanText(ledger.client.site)}"`,
+        `"${cleanText(ledger.client.mobile_number)}"`,
+        totalOutstanding,
+        ledger.total_outstanding,
+        borrowedStockBalance,
+        ledger.all_transactions.length,
+        `"${lastActivity}"`,
+        ledger.has_activity ? 'Yes' : 'No'
+      ].join(','));
+    });
+
+    // Create CSV content with BOM
+    const csvContent = BOM + csvRows.join('\n');
+    
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    const today = new Date();
+    const dateString = today.toISOString().split('T')[0];
+    const filename = `નીલકંઠ-પ્લેટ-ડેપો-બેકઅપ-${dateString}.csv`;
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    URL.revokeObjectURL(url);
+    
+    return true;
+  } catch (error) {
+    console.error('CSV Export Error:', error);
+    return false;
+  }
 };
 
 export function MobileLedgerPage() {
@@ -161,7 +209,6 @@ export function MobileLedgerPage() {
 
         const plateBalanceMap = new Map<string, PlateBalance>();
         
-        // Initialize ALL plate sizes (even if no activity)
         PLATE_SIZES.forEach(size => {
           plateBalanceMap.set(size, {
             plate_size: size,
@@ -189,7 +236,6 @@ export function MobileLedgerPage() {
           });
         });
 
-        // Always return ALL plate sizes in correct order
         const plate_balances = PLATE_SIZES.map(size => {
           const balance = plateBalanceMap.get(size)!;
           return {
@@ -303,53 +349,29 @@ export function MobileLedgerPage() {
     }
   };
 
-  // Simplified CSV Export Function
+  // Fixed CSV Export Handler
   const handleBackupData = async () => {
     try {
       setExportingCSV(true);
       
-      // Prepare simplified data for CSV export
-      const csvData = clientLedgers.map(ledger => {
-        // Calculate borrowed stock balance
-        const borrowedIssued = ledger.all_transactions
-          .filter(t => t.type === 'udhar')
-          .reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0), 0);
-        
-        const borrowedReturned = ledger.all_transactions
-          .filter(t => t.type === 'jama')
-          .reduce((sum, t) => sum + t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0), 0);
-        
-        const borrowedOutstanding = borrowedIssued - borrowedReturned;
-        const totalOutstanding = ledger.total_outstanding + borrowedOutstanding;
-
-        return {
-          'Client ID': ledger.client.id,
-          'Client Name': ledger.client.name,
-          'Site': ledger.client.site || 'N/A',
-          'Mobile': ledger.client.mobile_number || 'N/A',
-          'Total Outstanding': totalOutstanding,
-          'Regular Outstanding': ledger.total_outstanding,
-          'Borrowed Stock Outstanding': borrowedOutstanding,
-          'Total Transactions': ledger.all_transactions.length,
-          'Last Activity': ledger.all_transactions.length > 0 
-            ? new Date(ledger.all_transactions[0].date).toLocaleDateString('en-GB')
-            : 'Never',
-          'Has Activity': ledger.has_activity ? 'Yes' : 'No'
-        };
-      });
-
-      // Generate filename with current date
-      const today = new Date();
-      const dateString = today.toISOString().split('T')[0];
-      const filename = `ledger-backup-${dateString}.csv`;
-
-      // Export to CSV
-      exportToCSV(csvData, filename);
+      // Simple validation
+      if (!clientLedgers || clientLedgers.length === 0) {
+        alert('⚠️ કોઈ ડેટા મળ્યો નથી. કૃપા કરીને રિફ્રેશ કરો.');
+        return;
+      }
       
-      alert('✅ CSV Backup exported successfully!');
+      // Call the fixed export function
+      const success = exportDetailedCSV(clientLedgers);
+      
+      if (success) {
+        alert('✅ CSV બેકઅપ સફળતાપૂર્વક ડાઉનલોડ થયું!');
+      } else {
+        throw new Error('CSV export failed');
+      }
+      
     } catch (error) {
-      console.error('Error creating CSV backup:', error);
-      alert('❌ Error creating backup. Please try again.');
+      console.error('CSV Export Error:', error);
+      alert('❌ બેકઅપ બનાવવામાં ભૂલ. કૃપા કરીને ફરી પ્રયત્ન કરો.');
     } finally {
       setExportingCSV(false);
     }
@@ -386,7 +408,7 @@ export function MobileLedgerPage() {
   const filteredLedgers = clientLedgers.filter(ledger =>
     ledger.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     ledger.client.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ledger.client.site.toLowerCase().includes(searchTerm.toLowerCase())
+    (ledger.client.site?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -420,7 +442,7 @@ export function MobileLedgerPage() {
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Compact Header with Stats */}
+        {/* Header */}
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-8 h-8 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
             <BookOpen className="w-4 h-4 text-white" />
@@ -428,7 +450,7 @@ export function MobileLedgerPage() {
           <h1 className="mb-1 text-sm font-bold text-gray-900">ખાતાવહી</h1>
           <p className="mb-3 text-xs text-blue-700">ગ્રાહક ભાડા ઇતિહાસ</p>
           
-          {/* Compact Quick Stats */}
+          {/* Stats */}
           <div className="grid grid-cols-3 gap-2 mb-3">
             <div className="p-1.5 bg-white border border-blue-100 rounded-lg shadow-sm">
               <p className="text-xs font-medium text-blue-600">કુલ ગ્રાહકો</p>
@@ -449,9 +471,8 @@ export function MobileLedgerPage() {
           </div>
         </div>
 
-        {/* Compact Search and Backup Section */}
+        {/* Search and Backup */}
         <div className="space-y-2">
-          {/* Compact Search Bar */}
           <div className="relative">
             <Search className="absolute w-3 h-3 text-blue-400 transform -translate-y-1/2 left-2 top-1/2" />
             <input
@@ -463,11 +484,10 @@ export function MobileLedgerPage() {
             />
           </div>
 
-          {/* Enhanced Backup Button with Loading State */}
           <button
             onClick={handleBackupData}
-            disabled={exportingCSV}
-            className="flex items-center justify-center w-full gap-2 px-3 py-2 text-xs font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl active:scale-95 disabled:opacity-50"
+            disabled={exportingCSV || clientLedgers.length === 0}
+            className="flex items-center justify-center w-full gap-2 px-3 py-2 text-xs font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {exportingCSV ? (
               <>
@@ -481,140 +501,130 @@ export function MobileLedgerPage() {
               </>
             )}
           </button>
+
+          <p className="text-xs text-center text-gray-600">
+            📊 કુલ {clientLedgers.length} ગ્રાહકોની સરળ બેકઅપ ફાઇલ
+          </p>
         </div>
 
-        {/* Compact Client Cards */}
+        {/* Client Cards */}
         <div className="space-y-2">
-          {filteredLedgers.map((ledger) => {
-            return (
-              <div key={ledger.client.id} className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200">
-                {/* Compact Client Header */}
-                <div 
-                  className="relative p-2 transition-colors cursor-pointer hover:bg-blue-50"
-                  onClick={() => toggleExpanded(ledger.client.id)}
-                >
-                  {/* Compact Activity Indicator Dot */}
-                  <div className={`absolute top-2 right-2 w-1.5 h-1.5 rounded-full ${
-                    ledger.has_activity 
-                      ? 'bg-green-500 animate-pulse' 
-                      : 'bg-gray-300'
-                  }`} />
-                  
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full shadow-md bg-gradient-to-r from-blue-500 to-indigo-500">
-                          {ledger.client.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-bold text-gray-900 truncate">
-                            {ledger.client.name}
-                          </h3>
-                          <p className="text-xs font-medium text-blue-600">
-                            ID: {ledger.client.id}
-                          </p>
-                        </div>
+          {filteredLedgers.map((ledger) => (
+            <div key={ledger.client.id} className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200">
+              <div 
+                className="relative p-2 transition-colors cursor-pointer hover:bg-blue-50"
+                onClick={() => toggleExpanded(ledger.client.id)}
+              >
+                <div className={`absolute top-2 right-2 w-1.5 h-1.5 rounded-full ${
+                  ledger.has_activity ? 'bg-green-500 animate-pulse' : 'bg-gray-300'
+                }`} />
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center justify-center w-6 h-6 text-xs font-bold text-white rounded-full shadow-md bg-gradient-to-r from-blue-500 to-indigo-500">
+                        {ledger.client.name.charAt(0).toUpperCase()}
                       </div>
-                      <div className="flex flex-wrap items-center gap-2 ml-8">
-                        {ledger.client.site && (
-                          <div className="flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-full">
-                            <MapPin className="w-2.5 h-2.5" />
-                            <span className="truncate max-w-[120px]">{ledger.client.site}</span>
-                          </div>
-                        )}
-                        {ledger.client.mobile_number && (
-                          <div className="flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-full">
-                            <Phone className="w-2.5 h-2.5" />
-                            <span>{ledger.client.mobile_number}</span>
-                          </div>
-                        )}
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-900 truncate">
+                          {ledger.client.name}
+                        </h3>
+                        <p className="text-xs font-medium text-blue-600">
+                          ID: {ledger.client.id}
+                        </p>
                       </div>
                     </div>
-                    
-                    <div className="flex flex-col items-end gap-1.5 mt-2 ml-2">
-                      {/* Compact Status Badge */}
-                      <div className="flex flex-col items-end gap-1.5">
-                        {/* Stock Badge */}
-                        {(() => {
-                          const borrowedStockBalance = ledger.all_transactions.reduce((bSum, t) => {
-                            if (t.type === 'udhar') {
-                              return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
-                            } else {
-                              return bSum - t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0);
-                            }
-                          }, 0);
-                          
-                          const totalBalance = ledger.total_outstanding + borrowedStockBalance;
-                          
-                          return totalBalance > 0 ? (
-                            <div className={`px-2 py-1 rounded-full text-xs font-bold shadow-lg bg-gradient-to-r from-red-500 to-red-600 text-white`}>
-                              <div className="text-center">
-                                <div>{totalBalance} કુલ બાકી</div>
-                                <div className="text-[10px] mt-0.5 font-normal">
-                                </div>
-                              </div>
+                    <div className="flex flex-wrap items-center gap-2 ml-8">
+                      {ledger.client.site && (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-full">
+                          <MapPin className="w-2.5 h-2.5" />
+                          <span className="truncate max-w-[120px]">{ledger.client.site}</span>
+                        </div>
+                      )}
+                      {ledger.client.mobile_number && (
+                        <div className="flex items-center gap-1 px-1.5 py-0.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-full">
+                          <Phone className="w-2.5 h-2.5" />
+                          <span>{ledger.client.mobile_number}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-col items-end gap-1.5 mt-2 ml-2">
+                    <div className="flex flex-col items-end gap-1.5">
+                      {(() => {
+                        const borrowedStockBalance = ledger.all_transactions.reduce((bSum, t) => {
+                          if (t.type === 'udhar') {
+                            return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
+                          } else {
+                            return bSum - t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0);
+                          }
+                        }, 0);
+                        
+                        const totalBalance = ledger.total_outstanding + borrowedStockBalance;
+                        
+                        return totalBalance > 0 ? (
+                          <div className="px-2 py-1 text-xs font-bold text-white rounded-full shadow-lg bg-gradient-to-r from-red-500 to-red-600">
+                            <div className="text-center">
+                              <div>{totalBalance} કુલ બાકી</div>
                             </div>
-                          ) : (
-                            <span className="px-2 py-1 text-xs font-bold text-white rounded-full shadow-lg bg-gradient-to-r from-green-500 to-green-600">
-                              પૂર્ણ
-                            </span>
-                          );
-                        })()}
-                        {/* Compact Download Button */}
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDownloadClientLedger(ledger);
-                          }}
-                          disabled={downloadingLedger === ledger.client.id}
-                          className="flex items-center justify-center text-white transition-all duration-200 rounded-full shadow-lg w-7 h-7 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 hover:shadow-xl disabled:opacity-50 active:scale-95"
-                        >
-                          {downloadingLedger === ledger.client.id ? (
-                            <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
-                          ) : (
-                            <FileImage className="w-3.5 h-3.5" />
-                          )}
-                        </button>
-                      </div>
-                      
-                      {/* Compact Expand/Collapse Button */}
-                      <div className={`flex items-center justify-center w-6 h-6 transition-all duration-200 rounded-full ${
-                        expandedClient === ledger.client.id
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-blue-100 text-blue-600'
-                      }`}>
-                        {expandedClient === ledger.client.id ? (
-                          <ChevronUp className="w-3.5 h-3.5" />
+                          </div>
                         ) : (
-                          <ChevronDown className="w-3.5 h-3.5" />
+                          <span className="px-2 py-1 text-xs font-bold text-white rounded-full shadow-lg bg-gradient-to-r from-green-500 to-green-600">
+                            પૂર્ણ
+                          </span>
+                        );
+                      })()}
+                      
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDownloadClientLedger(ledger);
+                        }}
+                        disabled={downloadingLedger === ledger.client.id}
+                        className="flex items-center justify-center text-white transition-all duration-200 rounded-full shadow-lg w-7 h-7 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 hover:shadow-xl disabled:opacity-50 active:scale-95"
+                      >
+                        {downloadingLedger === ledger.client.id ? (
+                          <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
+                        ) : (
+                          <FileImage className="w-3.5 h-3.5" />
                         )}
-                      </div>
+                      </button>
+                    </div>
+                    
+                    <div className={`flex items-center justify-center w-6 h-6 transition-all duration-200 rounded-full ${
+                      expandedClient === ledger.client.id ? 'bg-blue-500 text-white' : 'bg-blue-100 text-blue-600'
+                    }`}>
+                      {expandedClient === ledger.client.id ? (
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      )}
                     </div>
                   </div>
                 </div>
-
-                {/* Compact Expanded Details */}
-                {expandedClient === ledger.client.id && (
-                  <div className="border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
-                    {!ledger.has_activity ? (
-                      <div className="p-4 text-center text-gray-500">
-                        <div className="flex items-center justify-center w-10 h-10 mx-auto mb-2 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
-                          <Package className="w-5 h-5 text-blue-400" />
-                        </div>
-                        <p className="text-xs font-medium">કોઈ પ્રવૃત્તિ નથી</p>
-                      </div>
-                    ) : (
-                      <AllSizesActivityTable 
-                        ledger={ledger} 
-                        onDownloadChallan={handleDownloadChallan}
-                        downloading={downloading}
-                      />
-                    )}
-                  </div>
-                )}
               </div>
-            );
-          })}
+
+              {expandedClient === ledger.client.id && (
+                <div className="border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
+                  {!ledger.has_activity ? (
+                    <div className="p-4 text-center text-gray-500">
+                      <div className="flex items-center justify-center w-10 h-10 mx-auto mb-2 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
+                        <Package className="w-5 h-5 text-blue-400" />
+                      </div>
+                      <p className="text-xs font-medium">કોઈ પ્રવૃત્તિ નથી</p>
+                    </div>
+                  ) : (
+                    <AllSizesActivityTable 
+                      ledger={ledger} 
+                      onDownloadChallan={handleDownloadChallan}
+                      downloading={downloading}
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
 
           {filteredLedgers.length === 0 && !loading && (
             <div className="py-6 text-center bg-white border-2 border-blue-100 shadow-lg rounded-xl">
@@ -635,7 +645,7 @@ export function MobileLedgerPage() {
   );
 }
 
-// Compact Activity Table Component
+// Activity Table Component (keeping the rest of your existing code)
 interface AllSizesActivityTableProps {
   ledger: ClientLedger;
   onDownloadChallan: (transaction: any, type: 'udhar' | 'jama') => void;
@@ -670,12 +680,10 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     return item?.notes || '';
   };
 
-  // Helper function to check if transaction has borrowed stock
   const hasBorrowedStock = (transaction: typeof ledger.all_transactions[0]) => {
     return transaction.type === 'udhar' && transaction.items.some(item => (item.borrowed_stock || 0) > 0);
   };
 
-  // Helper function to calculate total INCLUDING borrowed stock for કુલ column
   const getTransactionTotalWithBorrowed = (transaction: typeof ledger.all_transactions[0]) => {
     const regularTotal = transaction.items.reduce((sum, item) => sum + item.quantity, 0);
     if (transaction.type === 'udhar') {
@@ -689,7 +697,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     return regularTotal;
   };
 
-  // Helper function to format plate display - shows normal stock in blue and borrowed in red sup
   const formatPlateDisplay = (transaction: typeof ledger.all_transactions[0], plateSize: string) => {
     const quantity = getTransactionQuantity(transaction, plateSize);
     
@@ -709,21 +716,18 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     
     return (
       <div className="inline-block">
-        {/* Regular plates in dark blue */}
         {quantity > 0 && (
           <span className="text-xs font-bold text-blue-800">
             {prefix}{quantity}
           </span>
         )}
         
-        {/* Borrowed stock in red sup tag */}
         {borrowedStock > 0 && (
           <sup className="ml-0.5 font-bold text-red-600" style={{fontSize: '9px'}}>
             {prefix}{borrowedStock}
           </sup>
         )}
         
-        {/* Notes in smaller sup tag if needed */}
         {notes && (
           <sup className="ml-0.5 text-gray-500" style={{fontSize: '8px'}}>
             ({notes})
@@ -733,7 +737,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     );
   };
 
-  // Calculate net borrowed stock (issued borrowed - returned borrowed)
   const getNetBorrowedStock = () => {
     const issuedBorrowed = ledger.all_transactions
       .filter(t => t.type === 'udhar')
@@ -750,20 +753,14 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
     return issuedBorrowed - returnedBorrowed;
   };
 
-  // Calculate accurate grand total
   const getAccurateGrandTotal = () => {
-    // Regular outstanding balance (plates)
     const regularOutstanding = ledger.plate_balances.reduce((sum, balance) => sum + Math.abs(balance.outstanding), 0);
-    
-    // Net borrowed stock outstanding
     const netBorrowedStock = getNetBorrowedStock();
-    
     return regularOutstanding + netBorrowedStock;
   };
   
   return (
     <div className="p-2">
-      {/* Compact Blue Themed Header */}
       <div className="flex items-center gap-2 mb-2">
         <div className="flex items-center justify-center w-5 h-5 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500">
           <Package className="w-2.5 h-2.5 text-white" />
@@ -771,7 +768,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
         <h4 className="text-xs font-semibold text-gray-900">પ્લેટ પ્રવૃત્તિ</h4>
       </div>
       
-      {/* Compact Table */}
       <div className="overflow-hidden bg-white border-2 border-blue-100 rounded-lg shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
@@ -797,7 +793,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
               </tr>
             </thead>
             <tbody>
-              {/* Compact Current Balance Row */}
               <tr className="border-b-2 border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
                 <td className="sticky left-0 px-1 py-1 font-bold text-blue-900 border-r border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
                   <div className="text-xs">વર્તમાન બેલેન્સ</div>
@@ -810,11 +805,9 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                     {getAccurateGrandTotal()}
                   </div>
                 </td>
-                {/* Show ALL plate sizes with borrowed stock in red sup tag */}
                 {allPlateSizes.map(size => {
                   const balance = getCurrentBalance(size);
                   
-                  // Calculate borrowed stock balance for this size
                   const borrowedIssued = ledger.all_transactions
                     .filter(t => t.type === 'udhar')
                     .reduce((sum, t) => {
@@ -858,7 +851,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                 </td>
               </tr>
 
-              {/* Compact Transaction Rows */}
               {ledger.all_transactions.length === 0 ? (
                 <tr>
                   <td colSpan={allPlateSizes.length + 4} className="px-1 py-3 text-center text-blue-500">
@@ -878,7 +870,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                     }`}>
                       <div className="text-xs font-semibold text-gray-900">
                         #{transaction.number}
-                        {/* Add asterisk if transaction has borrowed stock */}
                         {hasBorrowedStock(transaction) && (
                           <span className="font-bold text-purple-600">*</span>
                         )}
@@ -897,14 +888,12 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                       </div>
                     </td>
                     
-                    {/* Total Column - shows કુલ grand total including borrowed stock */}
                     <td className="px-1 py-0.5 text-center border-l border-blue-100">
                       <div className="text-xs font-medium text-blue-600">
                         {getTransactionTotalWithBorrowed(transaction)}
                       </div>
                     </td>
 
-                    {/* Show ALL plate sizes with COMBINED totals and notes in ONE LINE smaller sup tag */}
                     {allPlateSizes.map(size => {
                       const formattedDisplay = formatPlateDisplay(transaction, size);
                       return (
@@ -938,7 +927,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
           </table>
         </div>
 
-        {/* Compact Blue Themed Legend */}
         <div className="p-2 border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50">
           <div className="flex flex-wrap justify-center gap-2 text-xs">
             <div className="flex items-center gap-1">
