@@ -214,28 +214,15 @@ function renderPlatesTable(
       const borrowedQty = plateData.borrowed_stock || 0;
       const totalForSize = regularQty + borrowedQty;
 
-      // For quantity column, show breakdown if there's both regular and borrowed
-      if (regularQty > 0 && borrowedQty > 0) {
-        renderHighContrastText(
-          ctx,
-          `${regularQty}+${borrowedQty}=${totalForSize}`,
-          coords.quantity_x,
-          currentY,
-          52,  // Slightly smaller for the breakdown
-          'bold'
-        );
-      } else {
-        // Show single number if only one type
-        renderHighContrastText(
-          ctx,
-          totalForSize.toString(),
-          coords.quantity_x,
-          currentY,
-          56,
-          'bold',
-          borrowedQty > 0 ? '#FF0000' : '#000000'  // Red for borrowed-only
-        );
-      }
+      // Always show just the total for the size
+      renderHighContrastText(
+        ctx,
+        totalForSize.toString(),
+        coords.quantity_x,
+        currentY,
+        56,
+        'bold'
+      );
 
       // Always show borrowed stock in its column when present
       if (borrowedQty > 0) {

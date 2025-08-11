@@ -819,7 +819,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                 <td className="px-1 py-1 text-center border-l border-blue-200">
                   <div className="text-xs font-semibold text-blue-700">-</div>
                 </td>
-                <td className="px-1 py-1 text-center border-l border-blue-200">
+                <td className="px-1 py-1 text-center border-l border-blue-200"> 
                   <div className="text-xs font-semibold text-blue-700">
                     {getAccurateGrandTotal()}
                   </div>
