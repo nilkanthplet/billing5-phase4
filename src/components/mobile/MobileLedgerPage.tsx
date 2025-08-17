@@ -1,4 +1,4 @@
-// MobileLedgerPage.tsx - Optimized with One-Line Search and Filters
+// MobileLedgerPage.tsx - Optimized with One-Line Search, Filters, and Sorting
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/supabase';
@@ -69,12 +69,13 @@ interface ClientLedger {
   }>;
 }
 
-// Filter interface
+// Filter interface with sorting
 interface FilterState {
   status: 'all' | 'active' | 'completed' | 'outstanding';
   dateRange: 'all' | 'last7days' | 'last30days' | 'last3months';
   plateSize: string;
   minOutstanding: number;
+  sortBy: 'clientIdAsc' | 'clientIdDesc' | 'clientNameAsc' | 'clientNameDesc';
 }
 
 // Constants
@@ -97,6 +98,13 @@ const FILTER_OPTIONS = {
     { value: 'last3months', label: 'છેલ્લા 3 મહિના' }
   ]
 };
+
+const SORT_OPTIONS = [
+  { value: 'clientIdAsc', label: 'ક્લાયન્ટ ID (વધતા ક્રમમાં)' },
+  { value: 'clientIdDesc', label: 'ક્લાયન્ટ ID (ઘટતા ક્રમમાં)' },
+  { value: 'clientNameAsc', label: 'નામ (અ થી હ)' },
+  { value: 'clientNameDesc', label: 'નામ (હ થી અ)' }
+];
 
 // Optimized CSV Export Function
 const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
@@ -178,12 +186,13 @@ export function MobileLedgerPage() {
   const [exportingCSV, setExportingCSV] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   
-  // Filter state
+  // Filter state with sorting
   const [filters, setFilters] = useState<FilterState>({
     status: 'all',
     dateRange: 'all',
     plateSize: '',
-    minOutstanding: 0
+    minOutstanding: 0,
+    sortBy: 'clientIdAsc'
   });
 
   // Fetch data effect
@@ -395,6 +404,24 @@ export function MobileLedgerPage() {
     });
   }, [clientLedgers, searchTerm, filters]);
 
+  // Sorted ledgers with useMemo
+  const sortedLedgers = useMemo(() => {
+    const ledgersCopy = [...filteredLedgers];
+    
+    switch (filters.sortBy) {
+      case 'clientIdAsc':
+        return ledgersCopy.sort((a, b) => a.client.id.localeCompare(b.client.id, 'gu'));
+      case 'clientIdDesc':
+        return ledgersCopy.sort((a, b) => b.client.id.localeCompare(a.client.id, 'gu'));
+      case 'clientNameAsc':
+        return ledgersCopy.sort((a, b) => a.client.name.localeCompare(b.client.name, 'gu'));
+      case 'clientNameDesc':
+        return ledgersCopy.sort((a, b) => b.client.name.localeCompare(a.client.name, 'gu'));
+      default:
+        return ledgersCopy;
+    }
+  }, [filteredLedgers, filters.sortBy]);
+
   // Event handlers
   const toggleExpanded = useCallback((clientId: string) => {
     setExpandedClient(expandedClient === clientId ? null : clientId);
@@ -458,7 +485,7 @@ export function MobileLedgerPage() {
         return;
       }
       
-      const success = exportDetailedCSV(filteredLedgers);
+      const success = exportDetailedCSV(sortedLedgers);
       
       if (success) {
         alert('✅ CSV બેકઅપ સફળતાપૂર્વક ડાઉનલોડ થયું!');
@@ -472,7 +499,7 @@ export function MobileLedgerPage() {
     } finally {
       setExportingCSV(false);
     }
-  }, [clientLedgers, filteredLedgers]);
+  }, [clientLedgers, sortedLedgers]);
 
   const handleDownloadClientLedger = useCallback(async (ledger: ClientLedger) => {
     try {
@@ -507,12 +534,17 @@ export function MobileLedgerPage() {
       status: 'all',
       dateRange: 'all',
       plateSize: '',
-      minOutstanding: 0
+      minOutstanding: 0,
+      sortBy: 'clientIdAsc'
     });
   }, []);
 
   // Check if any filters are active
-  const hasActiveFilters = filters.status !== 'all' || filters.dateRange !== 'all' || filters.plateSize || filters.minOutstanding > 0;
+  const hasActiveFilters = filters.status !== 'all' || 
+                          filters.dateRange !== 'all' || 
+                          filters.plateSize || 
+                          filters.minOutstanding > 0 ||
+                          filters.sortBy !== 'clientIdAsc';
 
   // Loading state
   if (loading) {
@@ -562,12 +594,12 @@ export function MobileLedgerPage() {
             </div>
             <div className="p-1.5 bg-white border border-blue-100 rounded-lg shadow-sm">
               <p className="text-xs font-medium text-blue-600">ફિલ્ટર્ડ</p>
-              <p className="text-sm font-bold text-gray-900">{filteredLedgers.length}</p>
+              <p className="text-sm font-bold text-gray-900">{sortedLedgers.length}</p>
             </div>
             <div className="p-1.5 bg-white border border-blue-100 rounded-lg shadow-sm">
               <p className="text-xs font-medium text-blue-600">કુલ બાકી</p>
               <p className="text-sm font-bold text-gray-900">
-                {filteredLedgers.reduce((sum, l) => {
+                {sortedLedgers.reduce((sum, l) => {
                   const borrowedStock = l.all_transactions.reduce((bSum, t) => {
                     if (t.type === 'udhar') {
                       return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
@@ -683,13 +715,29 @@ export function MobileLedgerPage() {
                   />
                 </div>
               </div>
+
+              {/* Third Row - Sort Options */}
+              <div className="grid grid-cols-1 gap-2">
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-700">ક્રમમાં લગાવો</label>
+                  <select
+                    value={filters.sortBy}
+                    onChange={(e) => setFilters(prev => ({ ...prev, sortBy: e.target.value as any }))}
+                    className="w-full px-2 py-1.5 text-xs bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                  >
+                    {SORT_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
           )}
 
           {/* Backup Button */}
           <button
             onClick={handleBackupData}
-            disabled={exportingCSV || filteredLedgers.length === 0}
+            disabled={exportingCSV || sortedLedgers.length === 0}
             className="flex items-center justify-center w-full gap-2 px-3 py-2 text-xs font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {exportingCSV ? (
@@ -700,19 +748,19 @@ export function MobileLedgerPage() {
             ) : (
               <>
                 <FileDown className="w-3 h-3" />
-                CSV બેકઅપ ડાઉનલોડ કરો ({filteredLedgers.length})
+                CSV બેકઅપ ડાઉનલોડ કરો ({sortedLedgers.length})
               </>
             )}
           </button>
 
           <p className="text-xs text-center text-gray-600">
-            📊 {filteredLedgers.length} ગ્રાહકોની ફિલ્ટર્ડ બેકઅપ ફાઇલ
+            📊 {sortedLedgers.length} ગ્રાહકોની ફિલ્ટર્ડ બેકઅપ ફાઇલ
           </p>
         </div>
 
         {/* Client Cards */}
         <div className="space-y-2">
-          {filteredLedgers.map((ledger) => (
+          {sortedLedgers.map((ledger) => (
             <div key={ledger.client.id} className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200">
               <div 
                 className="relative p-2 transition-colors cursor-pointer hover:bg-blue-50"
@@ -829,7 +877,7 @@ export function MobileLedgerPage() {
             </div>
           ))}
 
-          {filteredLedgers.length === 0 && !loading && (
+          {sortedLedgers.length === 0 && !loading && (
             <div className="py-6 text-center bg-white border-2 border-blue-100 shadow-lg rounded-xl">
               <div className="flex items-center justify-center w-12 h-12 mx-auto mb-3 rounded-full bg-gradient-to-r from-blue-200 to-indigo-200">
                 <User className="w-6 h-6 text-blue-400" />
