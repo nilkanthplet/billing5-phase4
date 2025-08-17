@@ -1,5 +1,5 @@
-// MobileLedgerPage.tsx - Fixed CSV Export
-import React, { useState, useEffect } from 'react';
+// MobileLedgerPage.tsx - Optimized with One-Line Search and Filters
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/supabase';
 import { 
@@ -13,7 +13,10 @@ import {
   Phone,
   MapPin,
   BookOpen,
-  FileImage
+  FileImage,
+  Filter,
+  Calendar,
+  X
 } from 'lucide-react';
 import { T } from '../../contexts/LanguageContext';
 import { PrintableChallan } from '../challans/PrintableChallan';
@@ -21,6 +24,7 @@ import { generateJPGChallan, downloadJPGChallan } from '../../utils/jpgChallanGe
 import { ChallanData } from '../challans/types';
 import { generateClientLedgerJPG, downloadClientLedgerJPG, ClientLedgerData } from '../../utils/clientLedgerGenerator';
 
+// Types
 type Client = Database['public']['Tables']['clients']['Row'];
 type Challan = Database['public']['Tables']['challans']['Row'];
 type ChallanItem = Database['public']['Tables']['challan_items']['Row'];
@@ -65,17 +69,39 @@ interface ClientLedger {
   }>;
 }
 
+// Filter interface
+interface FilterState {
+  status: 'all' | 'active' | 'completed' | 'outstanding';
+  dateRange: 'all' | 'last7days' | 'last30days' | 'last3months';
+  plateSize: string;
+  minOutstanding: number;
+}
+
+// Constants
 const PLATE_SIZES = [
   '2 X 3', '21 X 3', '18 X 3', '15 X 3', '12 X 3',
   '9 X 3', 'પતરા', '2 X 2', '2 ફુટ'
 ];
 
-// Fixed and Simplified CSV Export Function
+const FILTER_OPTIONS = {
+  status: [
+    { value: 'all', label: 'બધા ગ્રાહકો' },
+    { value: 'active', label: 'સક્રિય ગ્રાહકો' },
+    { value: 'completed', label: 'પૂર્ણ ખાતા' },
+    { value: 'outstanding', label: 'બાકી ખાતા' }
+  ],
+  dateRange: [
+    { value: 'all', label: 'બધા સમય' },
+    { value: 'last7days', label: 'છેલ્લા 7 દિવસ' },
+    { value: 'last30days', label: 'છેલ્લા 30 દિવસ' },
+    { value: 'last3months', label: 'છેલ્લા 3 મહિના' }
+  ]
+};
+
+// Optimized CSV Export Function
 const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
   try {
     const csvRows: string[] = [];
-    
-    // Add UTF-8 BOM for proper Gujarati character support
     const BOM = '\uFEFF';
     
     // Header
@@ -83,7 +109,6 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
     
     // Process each client
     clientLedgers.forEach((ledger) => {
-      // Calculate borrowed stock balance
       const borrowedStockBalance = ledger.all_transactions.reduce((bSum, t) => {
         if (t.type === 'udhar') {
           return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
@@ -97,13 +122,11 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
         ? new Date(ledger.all_transactions[0].date).toLocaleDateString('en-GB')
         : 'Never';
 
-      // Clean data for CSV
       const cleanText = (text: string | null | undefined) => {
         if (!text) return 'N/A';
-        return String(text).replace(/"/g, '""'); // Escape quotes
+        return String(text).replace(/"/g, '""');
       };
 
-      // Add client summary row
       csvRows.push([
         `"${cleanText(ledger.client.name)}"`,
         `"${cleanText(ledger.client.id)}"`,
@@ -118,10 +141,7 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
       ].join(','));
     });
 
-    // Create CSV content with BOM
     const csvContent = BOM + csvRows.join('\n');
-    
-    // Create and download file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -137,7 +157,6 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
     URL.revokeObjectURL(url);
     
     return true;
@@ -148,6 +167,7 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
 };
 
 export function MobileLedgerPage() {
+  // State
   const [clientLedgers, setClientLedgers] = useState<ClientLedger[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -156,7 +176,17 @@ export function MobileLedgerPage() {
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
   const [downloadingLedger, setDownloadingLedger] = useState<string | null>(null);
   const [exportingCSV, setExportingCSV] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  
+  // Filter state
+  const [filters, setFilters] = useState<FilterState>({
+    status: 'all',
+    dateRange: 'all',
+    plateSize: '',
+    minOutstanding: 0
+  });
 
+  // Fetch data effect
   useEffect(() => {
     fetchClientLedgers();
     
@@ -180,28 +210,22 @@ export function MobileLedgerPage() {
     };
   }, []);
 
-  const fetchClientLedgers = async () => {
+  // Optimized data fetching
+  const fetchClientLedgers = useCallback(async () => {
     try {
-      const { data: clients, error: clientsError } = await supabase
-        .from('clients')
-        .select('*')
-        .order('id');
+      const [clientsResponse, challansResponse, returnsResponse] = await Promise.all([
+        supabase.from('clients').select('*').order('id'),
+        supabase.from('challans').select(`*, challan_items (*)`).order('created_at', { ascending: false }),
+        supabase.from('returns').select(`*, return_line_items (*)`).order('created_at', { ascending: false })
+      ]);
 
-      if (clientsError) throw clientsError;
+      if (clientsResponse.error) throw clientsResponse.error;
+      if (challansResponse.error) throw challansResponse.error;
+      if (returnsResponse.error) throw returnsResponse.error;
 
-      const { data: challans, error: challansError } = await supabase
-        .from('challans')
-        .select(`*, challan_items (*)`)
-        .order('created_at', { ascending: false });
-
-      if (challansError) throw challansError;
-
-      const { data: returns, error: returnsError } = await supabase
-        .from('returns')
-        .select(`*, return_line_items (*)`)
-        .order('created_at', { ascending: false });
-
-      if (returnsError) throw returnsError;
+      const { data: clients } = clientsResponse;
+      const { data: challans } = challansResponse;
+      const { data: returns } = returnsResponse;
 
       const ledgers: ClientLedger[] = clients.map(client => {
         const clientChallans = challans.filter(c => c.client_id === client.id);
@@ -256,8 +280,8 @@ export function MobileLedgerPage() {
             items: challan.challan_items.map(item => ({
               plate_size: item.plate_size,
               quantity: item.borrowed_quantity,
-             borrowed_stock: item.borrowed_stock || 0,
-             notes: item.partner_stock_notes || ''
+              borrowed_stock: item.borrowed_stock || 0,
+              notes: item.partner_stock_notes || ''
             })),
             driver_name: challan.driver_name
           })),
@@ -284,7 +308,9 @@ export function MobileLedgerPage() {
           plate_balances,
           total_outstanding,
           has_activity,
-          all_transactions: allTransactions
+          all_transactions: allTransactions,
+          borrowed_stock_balances: [], // Computed as needed
+          borrowed_outstanding: 0 // Computed as needed
         };
       });
 
@@ -294,13 +320,87 @@ export function MobileLedgerPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const toggleExpanded = (clientId: string) => {
+  // Optimized filtering logic with useMemo
+  const filteredLedgers = useMemo(() => {
+    return clientLedgers.filter(ledger => {
+      // Search term filter
+      const searchMatch = !searchTerm || (
+        ledger.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ledger.client.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (ledger.client.site?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+      );
+
+      if (!searchMatch) return false;
+
+      // Status filter
+      const borrowedStockBalance = ledger.all_transactions.reduce((bSum, t) => {
+        if (t.type === 'udhar') {
+          return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
+        } else {
+          return bSum - t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0);
+        }
+      }, 0);
+      
+      const totalOutstanding = ledger.total_outstanding + borrowedStockBalance;
+      
+      switch (filters.status) {
+        case 'active':
+          if (!ledger.has_activity) return false;
+          break;
+        case 'completed':
+          if (totalOutstanding > 0) return false;
+          break;
+        case 'outstanding':
+          if (totalOutstanding <= 0) return false;
+          break;
+      }
+
+      // Minimum outstanding filter
+      if (filters.minOutstanding > 0 && totalOutstanding < filters.minOutstanding) {
+        return false;
+      }
+
+      // Date range filter
+      if (filters.dateRange !== 'all' && ledger.all_transactions.length > 0) {
+        const lastTransactionDate = new Date(ledger.all_transactions[0].date);
+        const now = new Date();
+        let cutoffDate = new Date();
+
+        switch (filters.dateRange) {
+          case 'last7days':
+            cutoffDate.setDate(now.getDate() - 7);
+            break;
+          case 'last30days':
+            cutoffDate.setDate(now.getDate() - 30);
+            break;
+          case 'last3months':
+            cutoffDate.setMonth(now.getMonth() - 3);
+            break;
+        }
+
+        if (lastTransactionDate < cutoffDate) return false;
+      }
+
+      // Plate size filter
+      if (filters.plateSize) {
+        const hasPlateActivity = ledger.all_transactions.some(transaction =>
+          transaction.items.some(item => item.plate_size === filters.plateSize)
+        );
+        if (!hasPlateActivity) return false;
+      }
+
+      return true;
+    });
+  }, [clientLedgers, searchTerm, filters]);
+
+  // Event handlers
+  const toggleExpanded = useCallback((clientId: string) => {
     setExpandedClient(expandedClient === clientId ? null : clientId);
-  };
+  }, [expandedClient]);
 
-  const handleDownloadChallan = async (transaction: any, type: 'udhar' | 'jama') => {
+  const handleDownloadChallan = useCallback(async (transaction: any, type: 'udhar' | 'jama') => {
     try {
       const downloadKey = `${type}-${transaction.id}`;
       setDownloading(downloadKey);
@@ -347,21 +447,18 @@ export function MobileLedgerPage() {
     } finally {
       setDownloading(null);
     }
-  };
+  }, [clientLedgers]);
 
-  // Fixed CSV Export Handler
-  const handleBackupData = async () => {
+  const handleBackupData = useCallback(async () => {
     try {
       setExportingCSV(true);
       
-      // Simple validation
       if (!clientLedgers || clientLedgers.length === 0) {
         alert('⚠️ કોઈ ડેટા મળ્યો નથી. કૃપા કરીને રિફ્રેશ કરો.');
         return;
       }
       
-      // Call the fixed export function
-      const success = exportDetailedCSV(clientLedgers);
+      const success = exportDetailedCSV(filteredLedgers);
       
       if (success) {
         alert('✅ CSV બેકઅપ સફળતાપૂર્વક ડાઉનલોડ થયું!');
@@ -375,9 +472,9 @@ export function MobileLedgerPage() {
     } finally {
       setExportingCSV(false);
     }
-  };
+  }, [clientLedgers, filteredLedgers]);
 
-  const handleDownloadClientLedger = async (ledger: ClientLedger) => {
+  const handleDownloadClientLedger = useCallback(async (ledger: ClientLedger) => {
     try {
       setDownloadingLedger(ledger.client.id);
       
@@ -403,14 +500,21 @@ export function MobileLedgerPage() {
     } finally {
       setDownloadingLedger(null);
     }
-  };
+  }, []);
 
-  const filteredLedgers = clientLedgers.filter(ledger =>
-    ledger.client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ledger.client.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (ledger.client.site?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  );
+  const resetFilters = useCallback(() => {
+    setFilters({
+      status: 'all',
+      dateRange: 'all',
+      plateSize: '',
+      minOutstanding: 0
+    });
+  }, []);
 
+  // Check if any filters are active
+  const hasActiveFilters = filters.status !== 'all' || filters.dateRange !== 'all' || filters.plateSize || filters.minOutstanding > 0;
+
+  // Loading state
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
@@ -457,36 +561,135 @@ export function MobileLedgerPage() {
               <p className="text-sm font-bold text-gray-900">{clientLedgers.length}</p>
             </div>
             <div className="p-1.5 bg-white border border-blue-100 rounded-lg shadow-sm">
-              <p className="text-xs font-medium text-blue-600">સક્રિય ગ્રાહકો</p>
-              <p className="text-sm font-bold text-gray-900">
-                {clientLedgers.filter(l => l.has_activity).length}
-              </p>
+              <p className="text-xs font-medium text-blue-600">ફિલ્ટર્ડ</p>
+              <p className="text-sm font-bold text-gray-900">{filteredLedgers.length}</p>
             </div>
             <div className="p-1.5 bg-white border border-blue-100 rounded-lg shadow-sm">
               <p className="text-xs font-medium text-blue-600">કુલ બાકી</p>
               <p className="text-sm font-bold text-gray-900">
-                {clientLedgers.reduce((sum, l) => sum + l.total_outstanding, 0)}
+                {filteredLedgers.reduce((sum, l) => {
+                  const borrowedStock = l.all_transactions.reduce((bSum, t) => {
+                    if (t.type === 'udhar') {
+                      return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
+                    } else {
+                      return bSum - t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0);
+                    }
+                  }, 0);
+                  return sum + l.total_outstanding + borrowedStock;
+                }, 0)}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Search and Backup */}
+        {/* Search and Filter Controls - Combined in One Line */}
         <div className="space-y-2">
-          <div className="relative">
-            <Search className="absolute w-3 h-3 text-blue-400 transform -translate-y-1/2 left-2 top-1/2" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full py-2 pl-8 pr-2 text-xs placeholder-blue-300 transition-all duration-200 bg-white border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
-              placeholder="નામ, ID અથવા સાઇટથી શોધો..."
-            />
+          {/* Combined Search and Filter Bar */}
+          <div className="flex gap-2">
+            {/* Search Input - Takes most space */}
+            <div className="relative flex-1">
+              <Search className="absolute w-3 h-3 text-blue-400 transform -translate-y-1/2 left-2 top-1/2" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full py-2 pl-8 pr-2 text-xs placeholder-blue-300 transition-all duration-200 bg-white border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
+                placeholder="નામ, ID અથવા સાઇટથી શોધો..."
+              />
+            </div>
+
+            {/* Filter Toggle Button */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium transition-all duration-200 rounded-lg shadow-md whitespace-nowrap ${
+                showFilters ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 border border-blue-200'
+              } hover:shadow-lg active:scale-95`}
+            >
+              <Filter className="w-3 h-3" />
+              ફિલ્ટર
+              {hasActiveFilters && (
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse ml-0.5"></span>
+              )}
+            </button>
+            
+            {/* Reset Button - Only show when filters are active */}
+            {hasActiveFilters && (
+              <button
+                onClick={resetFilters}
+                className="flex items-center justify-center gap-1 px-2 py-2 text-xs font-medium text-red-600 transition-all duration-200 bg-white border border-red-200 rounded-lg shadow-md hover:shadow-lg hover:bg-red-50 active:scale-95"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
+          {/* Compact Filter Panel */}
+          {showFilters && (
+            <div className="p-3 space-y-3 bg-white border-2 border-blue-100 rounded-lg shadow-lg">
+              {/* First Row - Status and Date Range */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-700">સ્થિતિ</label>
+                  <select
+                    value={filters.status}
+                    onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value as any }))}
+                    className="w-full px-2 py-1.5 text-xs bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                  >
+                    {FILTER_OPTIONS.status.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-700">તારીખ રેન્જ</label>
+                  <select
+                    value={filters.dateRange}
+                    onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value as any }))}
+                    className="w-full px-2 py-1.5 text-xs bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                  >
+                    {FILTER_OPTIONS.dateRange.map(option => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Second Row - Plate Size and Minimum Outstanding */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-700">પ્લેટ સાઈઝ</label>
+                  <select
+                    value={filters.plateSize}
+                    onChange={(e) => setFilters(prev => ({ ...prev, plateSize: e.target.value }))}
+                    className="w-full px-2 py-1.5 text-xs bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                  >
+                    <option value="">બધા પ્લેટ સાઈઝ</option>
+                    {PLATE_SIZES.map(size => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block mb-1 text-xs font-medium text-gray-700">લઘુત્તમ બાકી</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={filters.minOutstanding}
+                    onChange={(e) => setFilters(prev => ({ ...prev, minOutstanding: Number(e.target.value) }))}
+                    className="w-full px-2 py-1.5 text-xs bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Backup Button */}
           <button
             onClick={handleBackupData}
-            disabled={exportingCSV || clientLedgers.length === 0}
+            disabled={exportingCSV || filteredLedgers.length === 0}
             className="flex items-center justify-center w-full gap-2 px-3 py-2 text-xs font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {exportingCSV ? (
@@ -497,13 +700,13 @@ export function MobileLedgerPage() {
             ) : (
               <>
                 <FileDown className="w-3 h-3" />
-                CSV બેકઅપ ડાઉનલોડ કરો
+                CSV બેકઅપ ડાઉનલોડ કરો ({filteredLedgers.length})
               </>
             )}
           </button>
 
           <p className="text-xs text-center text-gray-600">
-            📊 કુલ {clientLedgers.length} ગ્રાહકોની સરળ બેકઅપ ફાઇલ
+            📊 {filteredLedgers.length} ગ્રાહકોની ફિલ્ટર્ડ બેકઅપ ફાઇલ
           </p>
         </div>
 
@@ -632,10 +835,14 @@ export function MobileLedgerPage() {
                 <User className="w-6 h-6 text-blue-400" />
               </div>
               <p className="mb-1 text-sm font-semibold text-gray-700">
-                {searchTerm ? 'કોઈ ગ્રાહક મળ્યો નથી' : 'કોઈ ગ્રાહક નથી'}
+                {searchTerm || hasActiveFilters
+                  ? 'કોઈ ગ્રાહક મળ્યો નથી' 
+                  : 'કોઈ ગ્રાહક નથી'}
               </p>
               <p className="text-xs text-blue-600">
-                {searchTerm ? 'શોધ શબ્દ બદલીને પ્રયત્ન કરો' : 'નવા ગ્રાહકો ઉમેરો'}
+                {searchTerm || hasActiveFilters
+                  ? 'ફિલ્ટર બદલીને પ્રયત્ન કરો' 
+                  : 'નવા ગ્રાહકો ઉમેરો'}
               </p>
             </div>
           )}
@@ -645,7 +852,7 @@ export function MobileLedgerPage() {
   );
 }
 
-// Activity Table Component (keeping the rest of your existing code)
+// AllSizesActivityTable Component
 interface AllSizesActivityTableProps {
   ledger: ClientLedger;
   onDownloadChallan: (transaction: any, type: 'udhar' | 'jama') => void;

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import { Database } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -35,6 +35,51 @@ interface StockValidation {
   available: number;
 }
 
+// Optimized toast function
+const showToast = (message: string, isSuccess: boolean = true, challanNumber?: string) => {
+  const toastDiv = document.createElement('div');
+  toastDiv.className = 'fixed inset-0 z-50 flex items-center justify-center';
+  toastDiv.innerHTML = `
+    <div class="animate-toast-slide-up">
+      <div class="flex flex-col items-center gap-3 px-6 py-4 ${isSuccess ? 'bg-gradient-to-r from-red-500 to-orange-500' : 'bg-gradient-to-r from-red-600 to-red-700'} rounded-xl shadow-xl max-w-sm mx-4">
+        <div class="flex items-center justify-center w-12 h-12 bg-white/20 rounded-full">
+          <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${isSuccess ? 'M5 13l4 4L19 7' : 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'}" />
+          </svg>
+        </div>
+        <div class="text-center">
+          <div class="text-base font-medium text-white">${message}</div>
+          ${challanNumber ? `<div class="mt-1 text-sm text-orange-100">ચલણ નંબર: ${challanNumber}</div>` : ''}
+        </div>
+        ${isSuccess ? '<div class="flex items-center justify-center w-10 h-10 bg-white/20 rounded-full"><svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg></div>' : ''}
+      </div>
+    </div>
+  `;
+
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes toast-slide-up {
+      0% { transform: scale(0.9); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-toast-slide-up {
+      animation: toast-slide-up 0.3s ease-out forwards;
+    }
+  `;
+  document.head.appendChild(style);
+  document.body.appendChild(toastDiv);
+
+  setTimeout(() => {
+    toastDiv.style.transition = 'all 0.3s ease-out';
+    toastDiv.style.opacity = '0';
+    toastDiv.style.transform = 'scale(0.9)';
+    setTimeout(() => {
+      document.body.removeChild(toastDiv);
+      document.head.removeChild(style);
+    }, 300);
+  }, 3000);
+};
+
 export function MobileIssueRental() {
   const { user } = useAuth();
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -53,17 +98,21 @@ export function MobileIssueRental() {
   const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
   const [showBorrowedColumn, setShowBorrowedColumn] = useState(false);
 
-  useEffect(() => { 
-    fetchStockData(); 
-    generateNextChallanNumber();
-    fetchPreviousDriverNames();
-  }, []);
-  
-  useEffect(() => { 
-    if (Object.keys(quantities).length > 0) validateStockAvailability(); 
-  }, [quantities, stockData]);
+  // Enhanced refs for tab navigation
+  const quantityInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  async function fetchPreviousDriverNames() {
+  // Optimized callbacks
+  const fetchStockData = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("stock").select("*").order("plate_size");
+      if (error) throw error;
+      setStockData(data || []);
+    } catch (error) {
+      console.error("Error fetching stock data:", error);
+    }
+  }, []);
+
+  const fetchPreviousDriverNames = useCallback(async () => {
     try {
       const { data } = await supabase
         .from('challans')
@@ -72,7 +121,6 @@ export function MobileIssueRental() {
         .order('created_at', { ascending: false });
 
       if (data) {
-        // Filter out null values and get unique driver names
         const uniqueDrivers = [...new Set(data
           .map(challan => challan.driver_name)
           .filter(name => name && name.trim()))] as string[];
@@ -81,21 +129,10 @@ export function MobileIssueRental() {
     } catch (error) {
       console.error('Error fetching previous driver names:', error);
     }
-  }
+  }, []);
 
-  async function fetchStockData() {
+  const generateNextChallanNumber = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from("stock").select("*").order("plate_size");
-      if (error) throw error;
-      setStockData(data || []);
-    } catch (error) {
-      console.error("Error fetching stock data:", error);
-    }
-  }
-
-  async function generateNextChallanNumber() {
-    try {
-      // Get the most recent challan number (last one created)
       const { data, error } = await supabase
         .from("challans")
         .select("challan_number")
@@ -104,34 +141,25 @@ export function MobileIssueRental() {
 
       if (error) throw error;
       
-      let nextNumber = "1"; // Default if no challans exist
+      let nextNumber = "1";
       
       if (data && data.length > 0) {
         const lastChallanNumber = data[0].challan_number;
-        
-        // Extract prefix and trailing number using regex
-        // This regex finds: (any characters)(trailing digits)
         const match = lastChallanNumber.match(/^(.*)(\d+)$/);
         
         if (match) {
-          const prefix = match[1]; // Characters before number (e.g., "KO", "ABC", or "")
-          const lastNumber = parseInt(match[2]); // The trailing number part
+          const prefix = match[1];
+          const lastNumber = parseInt(match[2]);
           const incrementedNumber = lastNumber + 1;
-          
-          // Keep the same number of digits with leading zeros if needed
           const digitCount = match[2].length;
           const paddedNumber = incrementedNumber.toString().padStart(digitCount, '0');
-          
           nextNumber = prefix + paddedNumber;
         } else {
-          // If no trailing number found, append "1" 
           nextNumber = lastChallanNumber + "1";
         }
       }
       
       setSuggestedChallanNumber(nextNumber);
-      
-      // Auto-fill only if field is empty mk
       if (!challanNumber) setChallanNumber(nextNumber);
       
     } catch (error) {
@@ -140,14 +168,9 @@ export function MobileIssueRental() {
       setSuggestedChallanNumber(fallback);
       if (!challanNumber) setChallanNumber(fallback);
     }
-  }
+  }, [challanNumber]);
 
-  function handleChallanNumberChange(value: string) {
-    setChallanNumber(value);
-    if (!value.trim()) setChallanNumber(suggestedChallanNumber);
-  }
-
-  function validateStockAvailability() {
+  const validateStockAvailability = useCallback(() => {
     const insufficientStock: StockValidation[] = [];
     Object.entries(quantities).forEach(([size, quantity]) => {
       if (quantity > 0) {
@@ -162,32 +185,56 @@ export function MobileIssueRental() {
       }
     });
     setStockValidation(insufficientStock);
-  }
+  }, [quantities, stockData]);
 
-  function handleQuantityChange(size: string, value: string) {
+  // Enhanced input handlers with tab navigation
+  const handleQuantityChange = useCallback((size: string, value: string) => {
     const quantity = parseInt(value) || 0;
     setQuantities(prev => ({ ...prev, [size]: quantity }));
-  }
+  }, []);
 
-  function handleNoteChange(size: string, value: string) {
+  const handleQuantityKeyDown = useCallback((e: React.KeyboardEvent, currentSize: string) => {
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault();
+      const currentIndex = PLATE_SIZES.indexOf(currentSize);
+      const nextIndex = (currentIndex + 1) % PLATE_SIZES.length;
+      const nextSize = PLATE_SIZES[nextIndex];
+      const nextInput = quantityInputRefs.current[nextSize];
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.select();
+      }
+    } else if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault();
+      const currentIndex = PLATE_SIZES.indexOf(currentSize);
+      const prevIndex = currentIndex === 0 ? PLATE_SIZES.length - 1 : currentIndex - 1;
+      const prevSize = PLATE_SIZES[prevIndex];
+      const prevInput = quantityInputRefs.current[prevSize];
+      if (prevInput) {
+        prevInput.focus();
+        prevInput.select();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      handleQuantityChange(currentSize, (e.target as HTMLInputElement).value);
+    }
+  }, [handleQuantityChange]);
+
+  const handleNoteChange = useCallback((size: string, value: string) => {
     setNotes(prev => ({ ...prev, [size]: value }));
-  }
+  }, []);
 
-  function handleBorrowedStockChange(size: string, value: string) {
+  const handleBorrowedStockChange = useCallback((size: string, value: string) => {
     const quantity = parseInt(value) || 0;
     setBorrowedStock(prev => ({ ...prev, [size]: quantity }));
-  }
+  }, []);
 
-  async function checkChallanNumberExists(challanNumber: string) {
-    const { data, error } = await supabase
-      .from("challans")
-      .select("challan_number")
-      .eq("challan_number", challanNumber)
-      .limit(1);
-    return data && data.length > 0;
-  }
+  const handleChallanNumberChange = useCallback((value: string) => {
+    setChallanNumber(value);
+    if (!value.trim()) setChallanNumber(suggestedChallanNumber);
+  }, [suggestedChallanNumber]);
 
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -197,8 +244,14 @@ export function MobileIssueRental() {
         return;
       }
 
-      const exists = await checkChallanNumberExists(challanNumber);
-      if (exists) {
+      // Check if challan number exists
+      const { data: existingChallan } = await supabase
+        .from("challans")
+        .select("challan_number")
+        .eq("challan_number", challanNumber)
+        .limit(1);
+
+      if (existingChallan && existingChallan.length > 0) {
         alert("ચલણ નંબર પહેલેથી અસ્તિત્વમાં છે. બીજો નંબર વાપરો.");
         return;
       }
@@ -206,11 +259,13 @@ export function MobileIssueRental() {
       const validItems = PLATE_SIZES.filter(size => 
         (quantities[size] > 0) || (borrowedStock[size] > 0)
       );
+      
       if (validItems.length === 0) {
         alert("ઓછામાં ઓછી એક પ્લેટની માત્રા અથવા બિજો ડેપો માત્રા દાખલ કરો.");
         return;
       }
 
+      // Create challan
       const { data: challan, error: challanError } = await supabase
         .from("challans")
         .insert([{
@@ -224,6 +279,7 @@ export function MobileIssueRental() {
 
       if (challanError) throw challanError;
 
+      // Create line items
       const lineItems = validItems.map(size => ({
         challan_id: challan.id,
         plate_size: size,
@@ -238,16 +294,17 @@ export function MobileIssueRental() {
 
       if (lineItemsError) throw lineItemsError;
 
-      // Update stock quantities only for regular plates (not borrowed stock)
-      for (const size of validItems) {
-        const regularQuantity = quantities[size] || 0;
-        if (regularQuantity > 0) {
+      // Update stock quantities
+      const stockUpdates = validItems
+        .filter(size => quantities[size] > 0)
+        .map(async (size) => {
+          const regularQuantity = quantities[size];
           const stockItem = stockData.find(s => s.plate_size === size);
           if (stockItem) {
             const newAvailableQuantity = Math.max(0, stockItem.available_quantity - regularQuantity);
             const newOnRentQuantity = stockItem.on_rent_quantity + regularQuantity;
             
-            const { error } = await supabase
+            return supabase
               .from('stock')
               .update({
                 available_quantity: newAvailableQuantity,
@@ -255,11 +312,12 @@ export function MobileIssueRental() {
                 updated_at: new Date().toISOString()
               })
               .eq('id', stockItem.id);
-
-            if (error) throw error;
           }
-        }
-      }
+        });
+
+      await Promise.all(stockUpdates.filter(Boolean));
+
+      // Generate and download challan
       const newChallanData: ChallanData = {
         type: "issue",
         challan_number: challan.challan_number,
@@ -290,6 +348,7 @@ export function MobileIssueRental() {
       const jpgDataUrl = await generateJPGChallan(newChallanData);
       downloadJPGChallan(jpgDataUrl, `issue-challan-${challan.challan_number}`);
 
+      // Reset form
       setQuantities({});
       setNotes({});
       setBorrowedStock({});
@@ -300,91 +359,29 @@ export function MobileIssueRental() {
       setChallanData(null);
       setShowClientSelector(false);
 
-      // Create and show success toast
-      const toastDiv = document.createElement('div');
-      toastDiv.className = 'fixed inset-0 z-50 flex items-center justify-center';
-      toastDiv.innerHTML = `
-        <div class="animate-toast-slide-up">
-          <div class="flex flex-col items-center gap-3 px-6 py-4 bg-gradient-to-r from-red-500 to-orange-500 rounded-xl shadow-xl max-w-sm mx-4">
-            <div class="flex items-center justify-center w-12 h-12 bg-white/20 rounded-full">
-              <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <div class="text-center">
-              <div class="text-base font-medium text-white">ચલણ સફળતાપૂર્વક બનાવવામાં આવ્યું!</div>
-              <div class="mt-1 text-sm text-orange-100">ચલણ નંબર: ${challan.challan_number}</div>
-            </div>
-            <div class="flex items-center justify-center w-10 h-10 bg-white/20 rounded-full">
-              <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-            </div>
-          </div>
-        </div>
-      `;
-
-      // Add animation styles
-      const style = document.createElement('style');
-      style.textContent = `
-        @keyframes toast-slide-up {
-          0% { transform: scale(0.9); opacity: 0; }
-          100% { transform: scale(1); opacity: 1; }
-        }
-        .animate-toast-slide-up {
-          animation: toast-slide-up 0.3s ease-out forwards;
-        }
-      `;
-      document.head.appendChild(style);
-      document.body.appendChild(toastDiv);
-
-      // Remove toast after 3 seconds with fade out animation
-      setTimeout(() => {
-        toastDiv.style.transition = 'all 0.3s ease-out';
-        toastDiv.style.opacity = '0';
-        toastDiv.style.transform = 'scale(0.9)';
-        setTimeout(() => {
-          document.body.removeChild(toastDiv);
-          document.head.removeChild(style);
-        }, 300);
-      }, 3000);
-
+      showToast("ચલણ સફળતાપૂર્વક બનાવવામાં આવ્યું!", true, challan.challan_number);
       await fetchStockData();
+      await generateNextChallanNumber();
     } catch (error) {
       console.error("Error creating challan:", error);
-      
-      // Show error toast
-      const errorToastDiv = document.createElement('div');
-      errorToastDiv.className = 'fixed inset-0 z-50 flex items-center justify-center';
-      errorToastDiv.innerHTML = `
-        <div class="animate-toast-slide-up">
-          <div class="flex flex-col items-center gap-3 px-6 py-4 bg-gradient-to-r from-red-600 to-red-700 rounded-xl shadow-xl max-w-sm mx-4">
-            <div class="flex items-center justify-center w-12 h-12 bg-white/20 rounded-full">
-              <svg class="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-            </div>
-            <div class="text-base font-medium text-white text-center">ચલણ બનાવવામાં ભૂલ. કૃપા કરીને ફરી પ્રયત્ન કરો.</div>
-          </div>
-        </div>
-      `;
-      document.body.appendChild(errorToastDiv);
-
-      // Remove error toast after 3 seconds
-      setTimeout(() => {
-        errorToastDiv.style.transition = 'all 0.3s ease-out';
-        errorToastDiv.style.opacity = '0';
-        errorToastDiv.style.transform = 'scale(0.9)';
-        setTimeout(() => {
-          document.body.removeChild(errorToastDiv);
-        }, 300);
-      }, 3000);
+      showToast("ચલણ બનાવવામાં ભૂલ. કૃપા કરીને ફરી પ્રયત્ન કરો.", false);
     } finally {
       setLoading(false);
     }
-  }
+  }, [challanNumber, selectedClient, challanDate, driverName, quantities, borrowedStock, notes, stockData, fetchStockData, generateNextChallanNumber]);
 
-  // Enhanced Client Selector Component with Client ID Field
+  // Effects
+  useEffect(() => { 
+    fetchStockData(); 
+    generateNextChallanNumber();
+    fetchPreviousDriverNames();
+  }, [fetchStockData, generateNextChallanNumber, fetchPreviousDriverNames]);
+  
+  useEffect(() => { 
+    if (Object.keys(quantities).length > 0) validateStockAvailability(); 
+  }, [validateStockAvailability]);
+
+  // Enhanced Client Selector Component
   function CompactClientSelector() {
     const [clients, setClients] = useState<Client[]>([]);
     const [searchTerm, setSearchTerm] = useState("");
@@ -397,11 +394,7 @@ export function MobileIssueRental() {
       mobile_number: ""
     });
 
-    useEffect(() => {
-      fetchClients();
-    }, []);
-
-    async function fetchClients() {
+    const fetchClients = useCallback(async () => {
       try {
         const { data, error } = await supabase
           .from("clients")
@@ -414,9 +407,13 @@ export function MobileIssueRental() {
       } finally {
         setLoading(false);
       }
-    }
+    }, []);
 
-    async function handleAddClient() {
+    useEffect(() => {
+      fetchClients();
+    }, [fetchClients]);
+
+    const handleAddClient = useCallback(async () => {
       if (!newClientData.id.trim()) {
         alert("ગ્રાહક ID દાખલ કરો");
         return;
@@ -443,7 +440,7 @@ export function MobileIssueRental() {
         console.error("Error adding client:", error);
         alert("ગ્રાહક ઉમેરવામાં ભૂલ થઈ. કદાચ આ ID પહેલેથી અસ્તિત્વમાં છે.");
       }
-    }
+    }, [newClientData]);
 
     const filteredClients = clients.filter(client =>
       client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -465,7 +462,6 @@ export function MobileIssueRental() {
           </div>
 
           <div className="space-y-2">
-            {/* CLIENT ID FIELD - Added as requested */}
             <div>
               <label className="block mb-1 text-xs font-medium text-blue-700">
                 ગ્રાહક ID *
@@ -606,8 +602,9 @@ export function MobileIssueRental() {
     );
   }
 
-  const getStockInfo = (size: string) => stockData.find(s => s.plate_size === size);
-  const isStockInsufficient = (size: string) => stockValidation.some(item => item.size === size);
+  // Memoized helper functions
+  const getStockInfo = useCallback((size: string) => stockData.find(s => s.plate_size === size), [stockData]);
+  const isStockInsufficient = useCallback((size: string) => stockValidation.some(item => item.size === size), [stockValidation]);
 
   // Show access denied for non-admin users
   if (!user?.isAdmin) {
@@ -651,7 +648,7 @@ export function MobileIssueRental() {
           <p className="text-xs text-gray-600">નવો ભાડો બનાવો</p>
         </div>
 
-        {/* Enhanced Client Selection with Larger Search Window */}
+        {/* Enhanced Client Selection */}
         <div className="overflow-hidden bg-white border border-gray-100 rounded-lg shadow-sm">
           <div className="p-2 bg-gradient-to-r from-red-500 to-orange-500">
             <h2 className="flex items-center gap-1 text-xs font-bold text-white">
@@ -708,74 +705,73 @@ export function MobileIssueRental() {
             </div>
 
             <div className="p-2 space-y-2">
-              {/* Compact Form Header */}
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                    ચલણ નંબર *
-                  </label>
-                  <input
-                    type="text"
-                    value={challanNumber}
-                    onChange={(e) => handleChallanNumberChange(e.target.value)}
-                    onFocus={(e) => e.target.select()}
-                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
-                    placeholder={suggestedChallanNumber}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                    તારીખ *
-                  </label>
-                  <input
-                    type="date"
-                    value={challanDate}
-                    onChange={(e) => setChallanDate(e.target.value)}
-                    required
-                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-5 gap-2">
-                <div className="col-span-3">
-                  <label className="block text-xs font-medium text-gray-700 mb-0.5">
-                    <span className="flex items-center gap-1">
-                      <User className="w-3 h-3 text-gray-500" />
-                      ડ્રાઈવરનું નામ
-                    </span>
-                  </label>
-                  <div className="relative">
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                      ચલણ નંબર *
+                    </label>
                     <input
                       type="text"
-                      value={driverName}
-                      onChange={e => setDriverName(e.target.value)}
-                      list="driver-suggestions"
+                      value={challanNumber}
+                      onChange={(e) => handleChallanNumberChange(e.target.value)}
+                      onFocus={(e) => e.target.select()}
                       className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
-                      placeholder="ડ્રાઈવરનું નામ દાખલ કરો"
+                      placeholder={suggestedChallanNumber}
+                      required
                     />
-                    <datalist id="driver-suggestions">
-                      {previousDrivers.map((driver, index) => (
-                        <option key={index} value={driver} />
-                      ))}
-                    </datalist>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                      તારીખ *
+                    </label>
+                    <input
+                      type="date"
+                      value={challanDate}
+                      onChange={(e) => setChallanDate(e.target.value)}
+                      required
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                    />
                   </div>
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-xs font-medium text-transparent mb-0.5">.</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowBorrowedColumn(!showBorrowedColumn)}
-                    className="flex items-center justify-center w-full gap-1 px-2 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded bg-blue-50 hover:bg-blue-100"
-                  >
-                    {showBorrowedColumn ? 'બિજો ડેપો છુપાવો' : 'બિજો ડેપો બતાવો'}
-                  </button>
+
+                <div className="grid grid-cols-5 gap-2">
+                  <div className="col-span-3">
+                    <label className="block text-xs font-medium text-gray-700 mb-0.5">
+                      <span className="flex items-center gap-1">
+                        <User className="w-3 h-3 text-gray-500" />
+                        ડ્રાઈવરનું નામ
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={driverName}
+                        onChange={e => setDriverName(e.target.value)}
+                        list="driver-suggestions"
+                        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                        placeholder="ડ્રાઈવરનું નામ દાખલ કરો"
+                      />
+                      <datalist id="driver-suggestions">
+                        {previousDrivers.map((driver, index) => (
+                          <option key={index} value={driver} />
+                        ))}
+                      </datalist>
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs font-medium text-transparent mb-0.5">.</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowBorrowedColumn(!showBorrowedColumn)}
+                      className="flex items-center justify-center w-full gap-1 px-2 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded bg-blue-50 hover:bg-blue-100"
+                    >
+                      {showBorrowedColumn ? 'બિજો ડેપો છુપાવો' : 'બિજો ડેપો બતાવો'}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
               {/* Stock Warning */}
               {stockValidation.length > 0 && (
@@ -785,7 +781,7 @@ export function MobileIssueRental() {
                 </div>
               )}
 
-              {/* Compact Table */}
+              {/* Enhanced Table with Tab Navigation */}
               <div className="overflow-x-auto">
                 <table className="w-full overflow-hidden text-xs rounded">
                   <thead>
@@ -815,13 +811,16 @@ export function MobileIssueRental() {
                           </td>
                           <td className="px-1 py-1 text-center">
                             <input
+                              ref={el => quantityInputRefs.current[size] = el}
                               type="number"
                               min={0}
                               value={quantities[size] || ""}
                               onChange={e => handleQuantityChange(size, e.target.value)}
-                              className={`w-10 px-0.5 py-0.5 border rounded text-center ${
+                              onKeyDown={e => handleQuantityKeyDown(e, size)}
+                              onFocus={e => e.target.select()}
+                              className={`w-10 px-0.5 py-0.5 border rounded text-center transition-all ${
                                 isInsufficient ? 'border-red-300 bg-red-50' : 'border-gray-300'
-                              }`}
+                              } focus:ring-1 focus:ring-red-200 focus:border-red-400`}
                               placeholder="0"
                             />
                             {isInsufficient && (
@@ -837,7 +836,8 @@ export function MobileIssueRental() {
                                 min={0}
                                 value={borrowedStock[size] || ""}
                                 onChange={e => handleBorrowedStockChange(size, e.target.value)}
-                                className="w-10 px-0.5 py-0.5 border border-blue-300 rounded text-center bg-blue-50"
+                                onFocus={e => e.target.select()}
+                                className="w-10 px-0.5 py-0.5 border border-blue-300 rounded text-center bg-blue-50 focus:ring-1 focus:ring-blue-200 focus:border-blue-400"
                                 placeholder="0"
                               />
                             </td>
@@ -845,7 +845,7 @@ export function MobileIssueRental() {
                           <td className="px-1 py-1 text-center">
                             <input
                               type="text"
-                              className="w-16 px-0.5 py-0.5 border border-gray-300 rounded"
+                              className="w-16 px-0.5 py-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
                               value={notes[size] || ""}
                               onChange={e => handleNoteChange(size, e.target.value)}
                               placeholder="નોંધ"

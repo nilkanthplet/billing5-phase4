@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import { Database } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -63,6 +63,9 @@ export function MobileReturnRental() {
   const [outstandingBorrowedStock, setOutstandingBorrowedStock] = useState<BorrowedStockData>({});
   const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
   const [stockData, setStockData] = useState<Stock[]>([]);
+
+  const quantityInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const borrowedStockInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => { 
     generateNextChallanNumber(); 
@@ -265,6 +268,116 @@ export function MobileReturnRental() {
   function handleNoteChange(size: string, value: string) {
     setNotes(prev => ({ ...prev, [size]: value }));
   }
+
+  const handleQuantityKeyDown = useCallback((e: React.KeyboardEvent, currentSize: string) => {
+    const currentIndex = PLATE_SIZES.indexOf(currentSize);
+    
+    switch (e.key) {
+      case 'Tab':
+        if (!e.shiftKey && currentIndex < PLATE_SIZES.length - 1) {
+          e.preventDefault();
+          const nextSize = PLATE_SIZES[currentIndex + 1];
+          quantityInputRefs.current[nextSize]?.focus();
+          quantityInputRefs.current[nextSize]?.select();
+        } else if (e.shiftKey && currentIndex > 0) {
+          e.preventDefault();
+          const prevSize = PLATE_SIZES[currentIndex - 1];
+          quantityInputRefs.current[prevSize]?.focus();
+          quantityInputRefs.current[prevSize]?.select();
+        }
+        break;
+      
+      case 'ArrowDown':
+      case 'ArrowRight':
+        e.preventDefault();
+        if (currentIndex < PLATE_SIZES.length - 1) {
+          const nextSize = PLATE_SIZES[currentIndex + 1];
+          quantityInputRefs.current[nextSize]?.focus();
+          quantityInputRefs.current[nextSize]?.select();
+        }
+        break;
+      
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (currentIndex > 0) {
+          const prevSize = PLATE_SIZES[currentIndex - 1];
+          quantityInputRefs.current[prevSize]?.focus();
+          quantityInputRefs.current[prevSize]?.select();
+        }
+        break;
+      
+      case 'Enter':
+        e.preventDefault();
+        (e.target as HTMLInputElement).blur();
+        if (currentIndex < PLATE_SIZES.length - 1) {
+          const nextSize = PLATE_SIZES[currentIndex + 1];
+          quantityInputRefs.current[nextSize]?.focus();
+          quantityInputRefs.current[nextSize]?.select();
+        }
+        break;
+
+      case 'Escape':
+        e.preventDefault();
+        (e.target as HTMLInputElement).blur();
+        break;
+    }
+  }, []);
+
+  const handleBorrowedStockKeyDown = useCallback((e: React.KeyboardEvent, currentSize: string) => {
+    const currentIndex = PLATE_SIZES.indexOf(currentSize);
+    
+    switch (e.key) {
+      case 'Tab':
+        if (!e.shiftKey && currentIndex < PLATE_SIZES.length - 1) {
+          e.preventDefault();
+          const nextSize = PLATE_SIZES[currentIndex + 1];
+          borrowedStockInputRefs.current[nextSize]?.focus();
+          borrowedStockInputRefs.current[nextSize]?.select();
+        } else if (e.shiftKey && currentIndex > 0) {
+          e.preventDefault();
+          const prevSize = PLATE_SIZES[currentIndex - 1];
+          borrowedStockInputRefs.current[prevSize]?.focus();
+          borrowedStockInputRefs.current[prevSize]?.select();
+        }
+        break;
+      
+      case 'ArrowDown':
+      case 'ArrowRight':
+        e.preventDefault();
+        if (currentIndex < PLATE_SIZES.length - 1) {
+          const nextSize = PLATE_SIZES[currentIndex + 1];
+          borrowedStockInputRefs.current[nextSize]?.focus();
+          borrowedStockInputRefs.current[nextSize]?.select();
+        }
+        break;
+      
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        e.preventDefault();
+        if (currentIndex > 0) {
+          const prevSize = PLATE_SIZES[currentIndex - 1];
+          borrowedStockInputRefs.current[prevSize]?.focus();
+          borrowedStockInputRefs.current[prevSize]?.select();
+        }
+        break;
+      
+      case 'Enter':
+        e.preventDefault();
+        (e.target as HTMLInputElement).blur();
+        if (currentIndex < PLATE_SIZES.length - 1) {
+          const nextSize = PLATE_SIZES[currentIndex + 1];
+          borrowedStockInputRefs.current[nextSize]?.focus();
+          borrowedStockInputRefs.current[nextSize]?.select();
+        }
+        break;
+
+      case 'Escape':
+        e.preventDefault();
+        (e.target as HTMLInputElement).blur();
+        break;
+    }
+  }, []);
 
   async function updateStockAfterReturn() {
     try {
@@ -964,10 +1077,13 @@ export function MobileReturnRental() {
                           </td>
                           <td className="px-1 py-1 text-center">
                             <input
+                              ref={el => quantityInputRefs.current[size] = el}
                               type="number"
                               min={0}
                               value={quantities[size] || ""}
                               onChange={e => handleQuantityChange(size, e.target.value)}
+                              onKeyDown={e => handleQuantityKeyDown(e, size)}
+                              onFocus={e => e.target.select()}
                               className={`w-10 px-0.5 py-0.5 border rounded text-center ${
                                 isExcess && outstandingCount >= 0
                                   ? 'border-orange-300 bg-orange-50' 
@@ -989,10 +1105,13 @@ export function MobileReturnRental() {
                               </td>
                               <td className="px-1 py-1 text-center">
                                 <input
+                                  ref={el => borrowedStockInputRefs.current[size] = el}
                                   type="number"
                                   min={0}
                                   value={borrowedStockReturns[size] || ""}
                                   onChange={e => handleBorrowedStockReturnChange(size, e.target.value)}
+                                  onKeyDown={e => handleBorrowedStockKeyDown(e, size)}
+                                  onFocus={e => e.target.select()}
                                   className={`w-10 px-0.5 py-0.5 border rounded text-center ${
                                     isBorrowedExcess && outstandingBorrowedCount >= 0
                                       ? 'border-orange-300 bg-orange-50' 
