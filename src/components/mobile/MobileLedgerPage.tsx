@@ -922,9 +922,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                   <div className="text-xs">તારીખ</div>
                 </th>
                 <th className="px-1 py-1 text-center font-bold min-w-[50px] border-l border-blue-400">
-                  <div className="text-xs">ડ્રાઈવર</div>
-                </th>
-                <th className="px-1 py-1 text-center font-bold min-w-[50px] border-l border-blue-400">
                   <div className="text-xs">કુલ</div>
                 </th>
                 {allPlateSizes.map(size => (
@@ -932,6 +929,9 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                     <div className="text-xs">{size}</div>
                   </th>
                 ))}
+                <th className="px-1 py-1 text-center font-bold min-w-[40px] border-l border-blue-400">
+                  <div className="text-xs">વાહન</div>
+                </th>
                 <th className="px-1 py-1 text-center font-bold min-w-[40px] border-l border-blue-400">
                   <div className="text-xs">ડાઉનલોડ</div>
                 </th>
@@ -1037,12 +1037,6 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                     </td>
                     
                     <td className="px-1 py-0.5 text-center border-l border-blue-100">
-                      <div className="text-xs font-medium text-gray-600">
-                        {transaction.driver_name || '-'}
-                      </div>
-                    </td>
-
-                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
                       <div className="text-xs font-medium text-blue-600">
                         {getTransactionTotalWithBorrowed(transaction)}
                       </div>
@@ -1060,6 +1054,12 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                         </td>
                       );
                     })}
+
+                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
+                      <div className="text-xs font-medium text-gray-600">
+                        {transaction.driver_name || '-'}
+                      </div>
+                    </td>
                     
                     <td className="px-1 py-0.5 text-center border-l border-blue-100">
                       <button

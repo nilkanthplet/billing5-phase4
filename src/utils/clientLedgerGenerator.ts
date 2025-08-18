@@ -54,14 +54,12 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
         const item = t.items.find(i => i.plate_size === plateSize);
         return sum + (item?.borrowed_stock || 0);
       }, 0);
-
     const returned = data.transactions
       .filter(t => t.type === 'jama')
       .reduce((sum, t) => {
         const item = t.items.find(i => i.plate_size === plateSize);
         return sum + (item?.returned_borrowed_stock || 0);
       }, 0);
-
     return borrowed - returned;
   };
 
@@ -81,7 +79,6 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
   const formatPlateDisplay = (transaction: typeof data.transactions[0], plateSize: string) => {
     const item = transaction.items.find(i => i.plate_size === plateSize);
     if (!item) return '';
-
     const quantity = item.quantity || 0;
     let borrowedStock = 0;
     
@@ -90,9 +87,7 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
     } else if (transaction.type === 'jama') {
       borrowedStock = item.returned_borrowed_stock || 0;
     }
-
     if (quantity === 0 && borrowedStock === 0) return '';
-
     const prefix = transaction.type === 'udhar' ? '+' : '-';
     const notes = item.notes || '';
     
@@ -123,7 +118,9 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
     return regularOutstanding + netBorrowedStock;
   };
 
-  // Generate HTML content with enhanced design and shop branding
+  const clientInitial = data.client.name.charAt(0).toUpperCase();
+
+  // Generate HTML content with improved header design
   tempDiv.innerHTML = `
     <div style="
       width: 1300px;
@@ -147,11 +144,11 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
         pointer-events: none;
       "></div>
 
-      <!-- Shop Header with Premium Branding -->
+      <!-- Enhanced Shop Header -->
       <div style="
         text-align: center;
-        margin-bottom: 45px;
-        padding: 40px;
+        margin-bottom: 35px;
+        padding: 35px;
         background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
         border-radius: 25px;
         box-shadow: 
@@ -163,75 +160,49 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
         position: relative;
         overflow: hidden;
       ">
-
-        <!-- Shop Logo and Name -->
+        <!-- Shop Branding -->
         <div style="
-          display: inline-flex;
+          display: flex;
+          gap: 25px;
           align-items: center;
-          gap: 20px;
           margin-bottom: 25px;
-          position: relative;
-          z-index: 1;
+          justify-content: center;
         ">
           <div style="
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6 60%, #10b981);
+            width: 75px;
+            height: 75px;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 25%, #6366f1 50%, #8b5cf6 75%, #a855f7 100%);
-            border-radius: 50%;
-            box-shadow: 
-              0 15px 35px rgba(59, 130, 246, 0.4),
-              0 5px 15px rgba(139, 92, 246, 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.2);
+            box-shadow: 0 15px 35px rgba(59, 130, 246, 0.4);
             border: 3px solid rgba(255, 255, 255, 0.3);
-            position: relative;
           ">
-            <!-- Inner glow -->
-            <div style="
-              position: absolute;
-              inset: 8px;
-              border-radius: 50%;
-              background: linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.05));
-            "></div>
-            <span style="
-              color: white; 
-              font-size: 32px; 
-              font-weight: bold;
-              position: relative;
-              z-index: 1;
-              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-            ">🏗️</span>
+            <span style="font-size: 36px; color: #fff; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);">🏗️</span>
           </div>
-          
           <div style="text-align: left;">
             <h1 style="
-              margin: 0 0 8px 0;
+              margin: 0;
               font-size: 42px;
               font-weight: 900;
-              background: linear-gradient(135deg, #1e40af 0%, #3b82f6 25%, #6366f1 50%, #8b5cf6 75%, #a855f7 100%);
+              background: linear-gradient(90deg,#1e40af,#3b82f6,#8b5cf6,#10b981);
               -webkit-background-clip: text;
               -webkit-text-fill-color: transparent;
               background-clip: text;
               letter-spacing: -1px;
-              text-shadow: 0 4px 8px rgba(59, 130, 246, 0.2);
             ">નીલકંઠ પ્લેટ ડેપો</h1>
             <div style="
-              padding: 8px 20px;
-              background: linear-gradient(135deg, #dbeafe, #e0e7ff);
-              border-radius: 20px;
-              border: 2px solid #3b82f6;
+              margin-top: 10px;
               display: inline-block;
-            ">
-              <p style="
-                margin: 0;
-                font-size: 16px;
-                color: #1e40af;
-                font-weight: 700;
-                letter-spacing: 0.5px;
-              ">🏪 પ્રીમિયમ પ્લેટ રેન્ટલ સર્વિસ</p>
-            </div>
+              padding: 8px 20px;
+              border-radius: 16px;
+              background: linear-gradient(90deg, #e0e7ff, #dbeafe 90%);
+              color: #1e40af;
+              font-size: 17px;
+              font-weight: 700;
+              border: 2px solid #3b82f6;
+            ">🏪 પ્રીમિયમ પ્લેટ રેન્ટલ સર્વિસ</div>
           </div>
         </div>
         
@@ -241,11 +212,10 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
           padding: 20px;
           border-radius: 20px;
           border: 2px solid #0284c7;
-          margin-top: 20px;
-          position: relative;
+          margin-bottom: 25px;
         ">
           <h2 style="
-            margin: 0 0 10px 0;
+            margin: 0;
             font-size: 32px;
             font-weight: 800;
             color: #0c4a6e;
@@ -265,145 +235,126 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
               color: white;
               font-size: 20px;
             ">📊</span>
-            ગ્રાહક ખાતાવહી
+            ગ્રાહક એકાઉન્ટ ખાતાવહી
           </h2>
-          <p style="
-            margin: 0;
-            font-size: 18px;
-            color: #0369a1;
-            font-weight: 600;
-          ">સંપૂર્ણ પ્લેટ ભાડા ઇતિહાસ અને બેલેન્સ રિપોર્ટ</p>
         </div>
         
-        <!-- Client Info Enhanced -->
+        <!-- Enhanced Client Info -->
         <div style="
-          background: linear-gradient(135deg, #fefefe, #f8fafc);
-          padding: 30px;
-          border-radius: 20px;
-          margin-top: 25px;
+          background: linear-gradient(135deg, #f8fafc, #eef2ff);
+          border-radius: 22px;
+          padding: 28px;
+          display: flex;
+          gap: 32px;
+          align-items: center;
+          box-shadow: 0 8px 20px rgba(96, 165, 250, 0.15);
           border: 3px solid;
           border-image: linear-gradient(135deg, #3b82f6, #8b5cf6) 1;
-          box-shadow: 
-            0 10px 25px rgba(59, 130, 246, 0.1),
-            inset 0 1px 0 rgba(255, 255, 255, 0.9);
         ">
-          <div style="display: flex; align-items: center; justify-content: center; gap: 25px; margin-bottom: 20px;">
+          <div style="
+            background: linear-gradient(135deg, #1e40af, #a855f7);
+            width: 70px;
+            height: 70px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 32px;
+            font-weight: 900;
+            box-shadow: 0 10px 25px rgba(30, 64, 175, 0.4);
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+          ">
+            ${clientInitial}
+          </div>
+          <div style="flex: 1;">
+            <div style="font-size: 28px; font-weight: 800; color: #334155; margin-bottom: 8px;">${data.client.name}</div>
             <div style="
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              width: 65px;
-              height: 65px;
-              background: linear-gradient(135deg, #1e40af, #3b82f6, #6366f1);
-              border-radius: 50%;
-              color: white;
-              font-size: 28px;
-              font-weight: bold;
-              box-shadow: 
-                0 10px 20px rgba(59, 130, 246, 0.4),
-                inset 0 1px 0 rgba(255, 255, 255, 0.2);
-              border: 3px solid rgba(255, 255, 255, 0.3);
-              text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-            ">${data.client.name.charAt(0).toUpperCase()}</div>
-            <div>
-              <h3 style="margin: 0; font-size: 32px; font-weight: 800; color: #0f172a; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);">${data.client.name}</h3>
-              <div style="
-                display: inline-block;
-                padding: 6px 15px;
-                background: linear-gradient(135deg, #dbeafe, #e0e7ff);
-                border-radius: 15px;
-                margin-top: 8px;
-                border: 2px solid #3b82f6;
-              ">
-                <p style="margin: 0; font-size: 18px; color: #1e40af; font-weight: 700;">ગ્રાહક ID: ${data.client.id}</p>
-              </div>
+              display: inline-block;
+              padding: 6px 15px;
+              background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+              border-radius: 15px;
+              margin-bottom: 10px;
+              border: 2px solid #3b82f6;
+            ">
+              <span style="font-size: 16px; color: #1e40af; font-weight: 700;">ID: ${data.client.id}</span>
+            </div>
+            <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+              ${data.client.site ? `
+                <div style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  padding: 8px 16px;
+                  background: rgba(255, 255, 255, 0.8);
+                  border-radius: 20px;
+                  font-size: 16px;
+                  font-weight: 700;
+                  color: #0ea5e9;
+                  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.1);
+                ">
+                  <span style="font-size: 18px;">📍</span>
+                  <span>${data.client.site}</span>
+                </div>
+              ` : ''}
+              
+              ${data.client.mobile ? `
+                <div style="
+                  display: flex;
+                  align-items: center;
+                  gap: 8px;
+                  padding: 8px 16px;
+                  background: rgba(255, 255, 255, 0.8);
+                  border-radius: 20px;
+                  font-size: 16px;
+                  font-weight: 700;
+                  color: #0ea5e9;
+                  box-shadow: 0 4px 10px rgba(59, 130, 246, 0.1);
+                ">
+                  <span style="font-size: 18px;">📱</span>
+                  <span>${data.client.mobile}</span>
+                </div>
+              ` : ''}
             </div>
           </div>
-          
-          <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; margin-bottom: 20px;">
-            ${data.client.site ? `
-              <div style="
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                padding: 12px 24px;
-                background: linear-gradient(135deg, #ffffff, #f1f5f9);
-                border-radius: 25px;
-                font-size: 16px;
-                font-weight: 700;
-                color: #1e40af;
-                box-shadow: 
-                  0 6px 15px rgba(59, 130, 246, 0.15),
-                  inset 0 1px 0 rgba(255, 255, 255, 0.7);
-                border: 2px solid #bfdbfe;
-              ">
-                <span style="font-size: 20px;">📍</span>
-                <span>${data.client.site}</span>
-              </div>
-            ` : ''}
-            
-            ${data.client.mobile ? `
-              <div style="
-                display: flex;
-                align-items: center;
-                gap: 10px;
-                padding: 12px 24px;
-                background: linear-gradient(135deg, #ffffff, #f1f5f9);
-                border-radius: 25px;
-                font-size: 16px;
-                font-weight: 700;
-                color: #1e40af;
-                box-shadow: 
-                  0 6px 15px rgba(59, 130, 246, 0.15),
-                  inset 0 1px 0 rgba(255, 255, 255, 0.7);
-                border: 2px solid #bfdbfe;
-              ">
-                <span style="font-size: 20px;">📱</span>
-                <span>${data.client.mobile}</span>
-              </div>
-            ` : ''}
-          </div>
-
-          <!-- Outstanding Balance with Enhanced Styling -->
+        </div>
+        
+        <!-- Outstanding Balance -->
+        <div style="display: flex; justify-content: center; margin-top: 25px;">
           <div style="
             display: flex;
-            justify-content: center;
-            margin-top: 20px;
+            align-items: center;
+            gap: 15px;
+            padding: 18px 35px;
+            background: ${getAccurateGrandTotal() > 0 
+              ? 'linear-gradient(135deg, #fee2e2, #fecaca)' 
+              : 'linear-gradient(135deg, #dcfce7, #bbf7d0)'};
+            color: ${getAccurateGrandTotal() > 0 ? '#991b1b' : '#166534'};
+            border-radius: 30px;
+            font-size: 22px;
+            font-weight: 900;
+            box-shadow: 
+              0 10px 25px ${getAccurateGrandTotal() > 0 
+                ? 'rgba(239, 68, 68, 0.25)' 
+                : 'rgba(16, 185, 129, 0.25)'},
+              inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            border: 3px solid ${getAccurateGrandTotal() > 0 ? '#f87171' : '#4ade80'};
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
           ">
-            <div style="
-              display: flex;
-              align-items: center;
-              gap: 15px;
-              padding: 18px 35px;
-              background: ${getAccurateGrandTotal() > 0 
-                ? 'linear-gradient(135deg, #fee2e2, #fecaca)' 
-                : 'linear-gradient(135deg, #dcfce7, #bbf7d0)'};
-              color: ${getAccurateGrandTotal() > 0 ? '#991b1b' : '#166534'};
-              border-radius: 30px;
-              font-size: 22px;
-              font-weight: 900;
-              box-shadow: 
-                0 10px 25px ${getAccurateGrandTotal() > 0 
-                  ? 'rgba(239, 68, 68, 0.25)' 
-                  : 'rgba(16, 185, 129, 0.25)'},
-                inset 0 1px 0 rgba(255, 255, 255, 0.5);
-              border: 3px solid ${getAccurateGrandTotal() > 0 ? '#f87171' : '#4ade80'};
-              text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-            ">
-              <span style="font-size: 28px;">
-                ${getAccurateGrandTotal() > 0 ? '⚖️' : '✅'}
-              </span>
-              <span>
-                ${getAccurateGrandTotal() > 0 
-                  ? `કુલ બાકી: ${getAccurateGrandTotal()} પ્લેટ` 
-                  : 'સંપૂર્ણ ચુકવણી ✨'}
-              </span>
-            </div>
+            <span style="font-size: 28px;">
+              ${getAccurateGrandTotal() > 0 ? '⚖️' : '✅'}
+            </span>
+            <span>
+              ${getAccurateGrandTotal() > 0 
+                ? `કુલ બાકી: ${getAccurateGrandTotal()} પ્લેટ` 
+                : 'સંપૂર્ણ ચુકવણી ✨'}
+            </span>
           </div>
         </div>
       </div>
 
-      <!-- Activity Table with Enhanced Design -->
+      <!-- Activity Table -->
       <div style="
         background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
         border-radius: 25px;
@@ -445,7 +396,6 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
             ">સંપૂર્ણ પ્લેટ પ્રવૃત્તિ વિવરણ</h3>
           </div>
         </div>
-
         <div style="overflow-x: auto;">
           <table style="
             width: 100%;
@@ -498,7 +448,7 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
               </tr>
             </thead>
             <tbody>
-              <!-- Current Balance Row with Enhanced Styling -->
+              <!-- Current Balance Row -->
               <tr style="
                 background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 50%, #f0f9ff 100%);
                 border-bottom: 4px solid #3b82f6;
@@ -558,8 +508,7 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
                   `;
                 }).join('')}
               </tr>
-
-              <!-- Transaction Rows with Enhanced Styling -->
+              <!-- Transaction Rows -->
               ${data.transactions.length === 0 ? `
                 <tr>
                   <td colspan="${PLATE_SIZES.length + 3}" style="
@@ -657,8 +606,7 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
             </tbody>
           </table>
         </div>
-
-        <!-- Enhanced Legend -->
+        <!-- Legend -->
         <div style="
           padding: 25px;
           background: linear-gradient(135deg, #f8fafc, #f1f5f9);
@@ -714,8 +662,9 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
             </div>
           </div>
         </div>
+      </div>
 
-      <!-- Enhanced Footer -->
+      <!-- Footer -->
       <div style="
         text-align: center;
         margin-top: 35px;
@@ -729,7 +678,6 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
           inset 0 1px 0 rgba(255, 255, 255, 0.9);
         position: relative;
       ">
-        <!-- Company info -->
         <div style="margin-bottom: 20px;">
           <p style="
             margin: 0 0 8px 0;
@@ -738,8 +686,6 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
             font-weight: 800;
           ">📞 સંપર્કમાં રહો | 📧 સેવા અને સપોર્ટ</p>
         </div>
-
-        <!-- Generation info -->
         <div style="
           padding: 15px;
           background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
@@ -776,7 +722,7 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
     const canvas = await html2canvas(tempDiv, {
       width: 1300,
       height: tempDiv.scrollHeight,
-      scale: 2.5, // Higher quality for printing
+      scale: 2.5,
       useCORS: true,
       allowTaint: false,
       backgroundColor: '#ffffff',
@@ -784,7 +730,6 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
       logging: false,
       imageTimeout: 15000,
       onclone: function(clonedDoc) {
-        // Ensure fonts are loaded in cloned document
         const style = clonedDoc.createElement('style');
         style.textContent = `
           @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
@@ -792,13 +737,9 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
         clonedDoc.head.appendChild(style);
       }
     });
-
-    // Convert to high-quality JPEG
+    
     const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-    
-    // Clean up
     document.body.removeChild(tempDiv);
-    
     return dataUrl;
   } catch (error) {
     document.body.removeChild(tempDiv);
