@@ -1,0 +1,34 @@
+{
+  "name": "CenteringPlatesApp",
+  "displayName": "NO WERE TECH - Centering Plates",
+  "expo": {
+    "name": "NO WERE TECH - Centering Plates",
+    "slug": "centering-plates-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1e40af"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nowheretech.centeringplates"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1e40af"
+      },
+      "package": "com.nowheretech.centeringplates"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
