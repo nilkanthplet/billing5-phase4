@@ -922,6 +922,9 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                   <div className="text-xs">તારીખ</div>
                 </th>
                 <th className="px-1 py-1 text-center font-bold min-w-[50px] border-l border-blue-400">
+                  <div className="text-xs">ડ્રાઈવર</div>
+                </th>
+                <th className="px-1 py-1 text-center font-bold min-w-[50px] border-l border-blue-400">
                   <div className="text-xs">કુલ</div>
                 </th>
                 {allPlateSizes.map(size => (
@@ -938,6 +941,9 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
               <tr className="border-b-2 border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
                 <td className="sticky left-0 px-1 py-1 font-bold text-blue-900 border-r border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
                   <div className="text-xs">ચાલુ નંગ</div>
+                </td>
+                <td className="px-1 py-1 text-center border-l border-blue-200">
+                  <div className="text-xs font-semibold text-blue-700">-</div>
                 </td>
                 <td className="px-1 py-1 text-center border-l border-blue-200">
                   <div className="text-xs font-semibold text-blue-700">-</div>
@@ -1030,6 +1036,12 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                       </div>
                     </td>
                     
+                    <td className="px-1 py-0.5 text-center border-l border-blue-100">
+                      <div className="text-xs font-medium text-gray-600">
+                        {transaction.driver_name || '-'}
+                      </div>
+                    </td>
+
                     <td className="px-1 py-0.5 text-center border-l border-blue-100">
                       <div className="text-xs font-medium text-blue-600">
                         {getTransactionTotalWithBorrowed(transaction)}
