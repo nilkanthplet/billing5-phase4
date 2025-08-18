@@ -1,5 +1,5 @@
 // MobileLedgerPage.tsx - Optimized with One-Line Search, Filters, and Sorting
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Database } from '../../lib/supabase';
 import { 
@@ -15,21 +15,17 @@ import {
   BookOpen,
   FileImage,
   Filter,
-  Calendar,
   X
 } from 'lucide-react';
-import { T } from '../../contexts/LanguageContext';
 import { PrintableChallan } from '../challans/PrintableChallan';
 import { generateJPGChallan, downloadJPGChallan } from '../../utils/jpgChallanGenerator';
 import { ChallanData } from '../challans/types';
 import { generateClientLedgerJPG, downloadClientLedgerJPG, ClientLedgerData } from '../../utils/clientLedgerGenerator';
-
 // Types
+import { TransactionItem } from '../../types/transactionTypes';
 type Client = Database['public']['Tables']['clients']['Row'];
-type Challan = Database['public']['Tables']['challans']['Row'];
 type ChallanItem = Database['public']['Tables']['challan_items']['Row'];
-type Return = Database['public']['Tables']['returns']['Row'];
-type ReturnLineItem = Database['public']['Tables']['return_line_items']['Row'];
+type ReturnItem = Database['public']['Tables']['return_line_items']['Row'];
 
 interface BorrowedStockBalance {
   plate_size: string;
@@ -71,10 +67,6 @@ interface ClientLedger {
 
 // Filter interface with sorting
 interface FilterState {
-  status: 'all' | 'active' | 'completed' | 'outstanding';
-  dateRange: 'all' | 'last7days' | 'last30days' | 'last3months';
-  plateSize: string;
-  minOutstanding: number;
   sortBy: 'clientIdAsc' | 'clientIdDesc' | 'clientNameAsc' | 'clientNameDesc';
 }
 
@@ -84,20 +76,7 @@ const PLATE_SIZES = [
   '9 X 3', 'પતરા', '2 X 2', '2 ફુટ'
 ];
 
-const FILTER_OPTIONS = {
-  status: [
-    { value: 'all', label: 'બધા ગ્રાહકો' },
-    { value: 'active', label: 'સક્રિય ગ્રાહકો' },
-    { value: 'completed', label: 'પૂર્ણ ખાતા' },
-    { value: 'outstanding', label: 'બાકી ખાતા' }
-  ],
-  dateRange: [
-    { value: 'all', label: 'બધા સમય' },
-    { value: 'last7days', label: 'છેલ્લા 7 દિવસ' },
-    { value: 'last30days', label: 'છેલ્લા 30 દિવસ' },
-    { value: 'last3months', label: 'છેલ્લા 3 મહિના' }
-  ]
-};
+// Removed filter options as they are no longer needed
 
 const SORT_OPTIONS = [
   { value: 'clientIdAsc', label: 'ક્લાયન્ટ ID (વધતા ક્રમમાં)' },
@@ -186,12 +165,8 @@ export function MobileLedgerPage() {
   const [exportingCSV, setExportingCSV] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   
-  // Filter state with sorting
+  // Filter state with sorting only
   const [filters, setFilters] = useState<FilterState>({
-    status: 'all',
-    dateRange: 'all',
-    plateSize: '',
-    minOutstanding: 0,
     sortBy: 'clientIdAsc'
   });
 
@@ -252,7 +227,7 @@ export function MobileLedgerPage() {
         });
 
         clientChallans.forEach(challan => {
-          challan.challan_items.forEach(item => {
+          challan.challan_items.forEach((item: ChallanItem) => {
             const existing = plateBalanceMap.get(item.plate_size);
             if (existing) {
               existing.total_borrowed += item.borrowed_quantity;
@@ -261,7 +236,7 @@ export function MobileLedgerPage() {
         });
 
         clientReturns.forEach(returnRecord => {
-          returnRecord.return_line_items.forEach(item => {
+          returnRecord.return_line_items.forEach((item: ReturnItem) => {
             const existing = plateBalanceMap.get(item.plate_size);
             if (existing) {
               existing.total_returned += item.returned_quantity;
@@ -286,7 +261,7 @@ export function MobileLedgerPage() {
             number: challan.challan_number,
             date: challan.challan_date,
             client_id: challan.client_id,
-            items: challan.challan_items.map(item => ({
+            items: challan.challan_items.map((item: ChallanItem) => ({
               plate_size: item.plate_size,
               quantity: item.borrowed_quantity,
               borrowed_stock: item.borrowed_stock || 0,
@@ -300,7 +275,7 @@ export function MobileLedgerPage() {
             number: returnRecord.return_challan_number,
             date: returnRecord.return_date,
             client_id: returnRecord.client_id,
-            items: returnRecord.return_line_items.map(item => ({
+            items: returnRecord.return_line_items.map((item: ReturnItem) => ({
               plate_size: item.plate_size,
               quantity: item.returned_quantity,
               returned_borrowed_stock: item.returned_borrowed_stock || 0,
@@ -344,75 +319,34 @@ export function MobileLedgerPage() {
       if (!searchMatch) return false;
 
       // Status filter
-      const borrowedStockBalance = ledger.all_transactions.reduce((bSum, t) => {
-        if (t.type === 'udhar') {
-          return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
-        } else {
-          return bSum - t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0);
-        }
-      }, 0);
-      
-      const totalOutstanding = ledger.total_outstanding + borrowedStockBalance;
-      
-      switch (filters.status) {
-        case 'active':
-          if (!ledger.has_activity) return false;
-          break;
-        case 'completed':
-          if (totalOutstanding > 0) return false;
-          break;
-        case 'outstanding':
-          if (totalOutstanding <= 0) return false;
-          break;
-      }
-
-      // Minimum outstanding filter
-      if (filters.minOutstanding > 0 && totalOutstanding < filters.minOutstanding) {
-        return false;
-      }
-
-      // Date range filter
-      if (filters.dateRange !== 'all' && ledger.all_transactions.length > 0) {
-        const lastTransactionDate = new Date(ledger.all_transactions[0].date);
-        const now = new Date();
-        let cutoffDate = new Date();
-
-        switch (filters.dateRange) {
-          case 'last7days':
-            cutoffDate.setDate(now.getDate() - 7);
-            break;
-          case 'last30days':
-            cutoffDate.setDate(now.getDate() - 30);
-            break;
-          case 'last3months':
-            cutoffDate.setMonth(now.getMonth() - 3);
-            break;
-        }
-
-        if (lastTransactionDate < cutoffDate) return false;
-      }
-
-      // Plate size filter
-      if (filters.plateSize) {
-        const hasPlateActivity = ledger.all_transactions.some(transaction =>
-          transaction.items.some(item => item.plate_size === filters.plateSize)
-        );
-        if (!hasPlateActivity) return false;
-      }
+      // All filtering removed except search - we now only handle search and sorting
 
       return true;
     });
   }, [clientLedgers, searchTerm, filters]);
 
-  // Sorted ledgers with useMemo
+  // Sorted ledgers with useMemo - improved numeric sorting for client IDs
   const sortedLedgers = useMemo(() => {
     const ledgersCopy = [...filteredLedgers];
     
+    // Helper function to compare client IDs properly
+    const compareClientIds = (a: string, b: string) => {
+      // Convert IDs to numbers if they're numeric
+      const numA = parseInt(a);
+      const numB = parseInt(b);
+      
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      // Fall back to string comparison for non-numeric IDs
+      return a.localeCompare(b, 'gu', { numeric: true });
+    };
+    
     switch (filters.sortBy) {
       case 'clientIdAsc':
-        return ledgersCopy.sort((a, b) => a.client.id.localeCompare(b.client.id, 'gu'));
+        return ledgersCopy.sort((a, b) => compareClientIds(a.client.id, b.client.id));
       case 'clientIdDesc':
-        return ledgersCopy.sort((a, b) => b.client.id.localeCompare(a.client.id, 'gu'));
+        return ledgersCopy.sort((a, b) => compareClientIds(b.client.id, a.client.id));
       case 'clientNameAsc':
         return ledgersCopy.sort((a, b) => a.client.name.localeCompare(b.client.name, 'gu'));
       case 'clientNameDesc':
@@ -446,7 +380,7 @@ export function MobileLedgerPage() {
           mobile: client.mobile_number || ''
         },
         driver_name: transaction.driver_name || undefined,
-        plates: transaction.items.map(item => ({
+        plates: transaction.items.map((item: TransactionItem) => ({
           size: item.plate_size,
           quantity: item.quantity,
           borrowed_stock: type === 'udhar' ? (item.borrowed_stock || 0) : (item.returned_borrowed_stock || 0),
@@ -531,20 +465,12 @@ export function MobileLedgerPage() {
 
   const resetFilters = useCallback(() => {
     setFilters({
-      status: 'all',
-      dateRange: 'all',
-      plateSize: '',
-      minOutstanding: 0,
       sortBy: 'clientIdAsc'
     });
   }, []);
 
   // Check if any filters are active
-  const hasActiveFilters = filters.status !== 'all' || 
-                          filters.dateRange !== 'all' || 
-                          filters.plateSize || 
-                          filters.minOutstanding > 0 ||
-                          filters.sortBy !== 'clientIdAsc';
+  const hasActiveFilters = filters.sortBy !== 'clientIdAsc';
 
   // Loading state
   if (loading) {
@@ -655,68 +581,9 @@ export function MobileLedgerPage() {
             )}
           </div>
 
-          {/* Compact Filter Panel */}
+          {/* Compact Filter Panel - Only Sorting */}
           {showFilters && (
             <div className="p-3 space-y-3 bg-white border-2 border-blue-100 rounded-lg shadow-lg">
-              {/* First Row - Status and Date Range */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block mb-1 text-xs font-medium text-gray-700">સ્થિતિ</label>
-                  <select
-                    value={filters.status}
-                    onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value as any }))}
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                  >
-                    {FILTER_OPTIONS.status.map(option => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block mb-1 text-xs font-medium text-gray-700">તારીખ રેન્જ</label>
-                  <select
-                    value={filters.dateRange}
-                    onChange={(e) => setFilters(prev => ({ ...prev, dateRange: e.target.value as any }))}
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                  >
-                    {FILTER_OPTIONS.dateRange.map(option => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Second Row - Plate Size and Minimum Outstanding */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block mb-1 text-xs font-medium text-gray-700">પ્લેટ સાઈઝ</label>
-                  <select
-                    value={filters.plateSize}
-                    onChange={(e) => setFilters(prev => ({ ...prev, plateSize: e.target.value }))}
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                  >
-                    <option value="">બધા પ્લેટ સાઈઝ</option>
-                    {PLATE_SIZES.map(size => (
-                      <option key={size} value={size}>{size}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block mb-1 text-xs font-medium text-gray-700">લઘુત્તમ બાકી</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={filters.minOutstanding}
-                    onChange={(e) => setFilters(prev => ({ ...prev, minOutstanding: Number(e.target.value) }))}
-                    className="w-full px-2 py-1.5 text-xs bg-white border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-
-              {/* Third Row - Sort Options */}
               <div className="grid grid-cols-1 gap-2">
                 <div>
                   <label className="block mb-1 text-xs font-medium text-gray-700">ક્રમમાં લગાવો</label>
