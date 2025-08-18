@@ -88,28 +88,35 @@ const SORT_OPTIONS = [
 // Enhanced backup function with detailed client data
 const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
   try {
-    const rows: string[] = [];
     const BOM = '\uFEFF';
-    const separator = '----------------------------------------';
+    const csvRows: string[] = [];
+    
+    // Add CSV headers
+    csvRows.push([
+      'ગ્રાહક ID',
+      'ગ્રાહક નામ',
+      'સાઈટ',
+      'મોબાઈલ',
+      ...PLATE_SIZES.map(size => `${size} (ઉધાર)`),
+      ...PLATE_SIZES.map(size => `${size} (જમા)`),
+      ...PLATE_SIZES.map(size => `${size} (ચાલુ)`),
+      'કુલ બાકી',
+      'છેલ્લો વ્યવહાર'
+    ].join(','));
     
     // Process each client
     clientLedgers.forEach((ledger) => {
-      // Calculate balances
-      const borrowedStockBalance = ledger.all_transactions.reduce((bSum, t) => {
-        if (t.type === 'udhar') {
-          return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
-        } else {
-          return bSum - t.items.reduce((itemSum, item) => itemSum + (item.returned_borrowed_stock || 0), 0);
-        }
-      }, 0);
-
-      // Group transactions by plate size
       const plateSizeBalances = new Map<string, { udhar: number; jama: number; current: number }>();
       
+      // Initialize plate size balances
+      PLATE_SIZES.forEach(size => {
+        plateSizeBalances.set(size, { udhar: 0, jama: 0, current: 0 });
+      });
+      
+      // Calculate transactions for each plate size
       ledger.all_transactions.forEach(t => {
         t.items.forEach(item => {
-          const plateSize = item.plate_size;
-          const current = plateSizeBalances.get(plateSize) || { udhar: 0, jama: 0, current: 0 };
+          const current = plateSizeBalances.get(item.plate_size)!;
           
           if (t.type === 'udhar') {
             current.udhar += (item.quantity || 0) + (item.borrowed_stock || 0);
@@ -118,58 +125,83 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
           }
           
           current.current = current.udhar - current.jama;
-          plateSizeBalances.set(plateSize, current);
+          plateSizeBalances.set(item.plate_size, current);
         });
       });
 
-      // Format client header
-      rows.push(separator);
-      rows.push(`ગ્રાહક: ${ledger.client.name}`);
-      rows.push(`આઈડી: ${ledger.client.id}`);
-      rows.push(`સાઈટ: ${ledger.client.site || 'N/A'}`);
-      rows.push(`મોબાઈલ: ${ledger.client.mobile_number || 'N/A'}`);
-      rows.push(separator);
-      
-      // Format plate size balances
-      rows.push('પ્લેટ સાઈઝ વાર હિસાબ:');
-      plateSizeBalances.forEach((balance, plateSize) => {
-        rows.push(`${plateSize}:`);
-        rows.push(`  ઉધાર: ${balance.udhar} નંગ`);
-        rows.push(`  જમા: ${balance.jama} નંગ`);
-        rows.push(`  ચાલુ નંગ: ${balance.current} નંગ`);
-      });
-      rows.push(separator);
-      
-      // Add total outstanding
-      const totalOutstanding = ledger.total_outstanding + borrowedStockBalance;
-      rows.push(`કુલ બાકી: ${totalOutstanding} નંગ`);
-      rows.push('');  // Empty line between clients
+      // Calculate total outstanding including borrowed stock
+      const totalOutstanding = Array.from(plateSizeBalances.values()).reduce(
+        (sum, balance) => sum + balance.current,
+        0
+      );
 
-      // Format transactions
-      if (ledger.all_transactions.length > 0) {
-        rows.push('છેલ્લા વ્યવહારો:');
-        ledger.all_transactions.slice(0, 5).forEach(t => {  // Show last 5 transactions
-          const date = new Date(t.date).toLocaleDateString('gu-IN');
-          const type = t.type === 'udhar' ? 'ઉધાર' : 'જમા';
-          rows.push(`${date} - ${type}`);
-          t.items.forEach(item => {
-            const qty = (item.quantity || 0) + (t.type === 'udhar' ? (item.borrowed_stock || 0) : (item.returned_borrowed_stock || 0));
-            rows.push(`  ${item.plate_size}: ${qty} નંગ`);
-          });
-        });
-      }
-      rows.push('\n');  // Double empty line between clients
+      // Get last transaction details
+      const lastTransaction = ledger.all_transactions[0];
+      const lastTransactionInfo = lastTransaction ? 
+        `${new Date(lastTransaction.date).toLocaleDateString('gu-IN')} - ${lastTransaction.type === 'udhar' ? 'ઉધાર' : 'જમા'} - ${lastTransaction.number}` : 
+        'કોઈ વ્યવહાર નથી';
+
+      // Create CSV row for this client
+      const rowData = [
+        ledger.client.id,
+        `"${ledger.client.name}"`,
+        `"${ledger.client.site || ''}"`,
+        `"${ledger.client.mobile_number || ''}"`,
+        ...PLATE_SIZES.map(size => plateSizeBalances.get(size)?.udhar || 0),
+        ...PLATE_SIZES.map(size => plateSizeBalances.get(size)?.jama || 0),
+        ...PLATE_SIZES.map(size => plateSizeBalances.get(size)?.current || 0),
+        totalOutstanding,
+        `"${lastTransactionInfo}"`
+      ];
+
+      csvRows.push(rowData.join(','));
     });
+
+    // Also create a summary sheet for total balances
+    csvRows.push(''); // Empty line
+    csvRows.push('કુલ હિસાબ (Total Summary)');
+    csvRows.push('પ્લેટ સાઈઝ,કુલ ઉધાર,કુલ જમા,કુલ ચાલુ');
+
+    // Calculate totals for each plate size
+    PLATE_SIZES.forEach(size => {
+      let totalUdhar = 0;
+      let totalJama = 0;
+
+      clientLedgers.forEach(ledger => {
+        ledger.all_transactions.forEach(t => {
+          const item = t.items.find(i => i.plate_size === size);
+          if (t.type === 'udhar') {
+            totalUdhar += (item?.quantity || 0) + (item?.borrowed_stock || 0);
+          } else {
+            totalJama += (item?.quantity || 0) + (item?.returned_borrowed_stock || 0);
+          }
+        });
+      });
+
+      csvRows.push(`${size},${totalUdhar},${totalJama},${totalUdhar - totalJama}`);
+    });
+
+    // Add grand totals
+    const grandTotal = clientLedgers.reduce((sum, ledger) => {
+      return sum + ledger.plate_balances.reduce(
+        (clientSum, balance) => clientSum + balance.outstanding,
+        0
+      );
+    }, 0);
+
+    csvRows.push('');
+    csvRows.push(`કુલ ગ્રાહકો (Total Clients),${clientLedgers.length}`);
+    csvRows.push(`કુલ બાકી (Grand Total),${grandTotal}`);
 
     // Save the file
     const today = new Date();
     const dateString = today.toISOString().split('T')[0];
-    const csvContent = BOM + rows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/plain;charset=utf-8' });
+    const csvContent = BOM + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `નીલકંઠ-પ્લેટ-ડેપો-બેકઅપ-${dateString}.txt`;
+    link.download = `નીલકંઠ-પ્લેટ-ડેપો-બેકઅપ-${dateString}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -942,9 +974,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
                 <td className="sticky left-0 px-1 py-1 font-bold text-blue-900 border-r border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
                   <div className="text-xs">ચાલુ નંગ</div>
                 </td>
-                <td className="px-1 py-1 text-center border-l border-blue-200">
-                  <div className="text-xs font-semibold text-blue-700">-</div>
-                </td>
+
                 <td className="px-1 py-1 text-center border-l border-blue-200">
                   <div className="text-xs font-semibold text-blue-700">-</div>
                 </td>
