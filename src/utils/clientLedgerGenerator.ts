@@ -117,9 +117,9 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
       <div style="display:flex;align-items:center;gap:25px;margin-bottom:25px;">
         <div>
           <p style="margin:0;font-size:20px;font-weight:700;">${data.client.name}</p>
-          <p style="margin:4px 0 0 0;font-size:14px;color:#555;">ID: ${data.client.id}</p>
-          <p style="margin:4px 0 0 0;font-size:14px;color:#555;">Location: ${data.client.site || '-'}</p>
-          <p style="margin:4px 0 0 0;font-size:14px;color:#555;">Mobile: ${data.client.mobile || '-'}</p>
+          <p style="margin:4px 0 0 0;font-size:14px;color:#555;">ગ્રાહક ID: ${data.client.id}</p>
+          <p style="margin:4px 0 0 0;font-size:14px;color:#555;">સાઇટ: ${data.client.site || '-'}</p>
+          <p style="margin:4px 0 0 0;font-size:14px;color:#555;">મોબાઇલ નંબર: ${data.client.mobile || '-'}</p>
         </div>
       </div>
 
