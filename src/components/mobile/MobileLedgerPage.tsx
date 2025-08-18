@@ -91,17 +91,25 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
     const BOM = '\uFEFF';
     const csvRows: string[] = [];
     
-    // Add CSV headers
+    // Main sheet headers
     csvRows.push([
-      'ગ્રાહક ID',
-      'ગ્રાહક નામ',
-      'સાઈટ',
-      'મોબાઈલ',
-      ...PLATE_SIZES.map(size => `${size} (ઉધાર)`),
-      ...PLATE_SIZES.map(size => `${size} (જમા)`),
-      ...PLATE_SIZES.map(size => `${size} (ચાલુ)`),
+      'ચલણ નં.',
+      'તારીખ',
+      'કુલ',
+      ...PLATE_SIZES.map(size => size),
+      'ડ્રાઈવર',
+      'પ્રકાર',
+      'ગ્રાહક'
+    ].join(','));
+    
+    // Add summary row
+    csvRows.push('');
+    csvRows.push('સારાંશ (Summary)');
+    csvRows.push([
+      'કુલ વ્યવહારો',
+      'કુલ ઉધાર',
+      'કુલ જમા',
       'કુલ બાકી',
-      'છેલ્લો વ્યવહાર'
     ].join(','));
     
     // Process each client
@@ -142,19 +150,52 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
         'કોઈ વ્યવહાર નથી';
 
       // Create CSV row for this client
-      const rowData = [
-        ledger.client.id,
-        `"${ledger.client.name}"`,
-        `"${ledger.client.site || ''}"`,
-        `"${ledger.client.mobile_number || ''}"`,
-        ...PLATE_SIZES.map(size => plateSizeBalances.get(size)?.udhar || 0),
-        ...PLATE_SIZES.map(size => plateSizeBalances.get(size)?.jama || 0),
-        ...PLATE_SIZES.map(size => plateSizeBalances.get(size)?.current || 0),
-        totalOutstanding,
-        `"${lastTransactionInfo}"`
-      ];
+      // Add all transactions in the same format as ledger page
+      ledger.all_transactions.forEach(t => {
+        const transactionTotal = t.items.reduce((sum, item) => {
+          const qty = (item.quantity || 0) + 
+            (t.type === 'udhar' ? (item.borrowed_stock || 0) : (item.returned_borrowed_stock || 0));
+          return sum + qty;
+        }, 0);
 
-      csvRows.push(rowData.join(','));
+        // Get quantities for each plate size
+        const plateSizeQuantities = PLATE_SIZES.map(size => {
+          const item = t.items.find(i => i.plate_size === size);
+          if (!item) return '';
+          
+          const regularQty = item.quantity || 0;
+          const borrowedQty = t.type === 'udhar' ? 
+            (item.borrowed_stock || 0) : 
+            (item.returned_borrowed_stock || 0);
+          
+          if (regularQty === 0 && borrowedQty === 0) return '';
+          
+          const prefix = t.type === 'udhar' ? '+' : '-';
+          let display = '';
+          
+          if (regularQty > 0) {
+            display = `${prefix}${regularQty}`;
+          }
+          
+          if (borrowedQty > 0) {
+            display += `${prefix}${borrowedQty}*`;
+          }
+          
+          return display;
+        });
+
+        // Format row exactly like ledger page
+        const transactionRow = [
+          t.number,
+          new Date(t.date).toLocaleDateString('gu-IN'),
+          transactionTotal,
+          ...plateSizeQuantities,
+          `"${t.driver_name || '-'}"`,
+          t.type === 'udhar' ? 'ઉધાર' : 'જમા',
+          `"${ledger.client.name} (${ledger.client.id})${ledger.client.site ? ` - ${ledger.client.site}` : ''}"`
+        ];
+        csvRows.push(transactionRow.join(','));
+      });
     });
 
     // Also create a summary sheet for total balances
@@ -181,17 +222,37 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
       csvRows.push(`${size},${totalUdhar},${totalJama},${totalUdhar - totalJama}`);
     });
 
-    // Add grand totals
-    const grandTotal = clientLedgers.reduce((sum, ledger) => {
-      return sum + ledger.plate_balances.reduce(
-        (clientSum, balance) => clientSum + balance.outstanding,
-        0
-      );
-    }, 0);
+    // Calculate summary
+    let totalTransactions = 0;
+    let totalUdhar = 0;
+    let totalJama = 0;
+    
+    clientLedgers.forEach(ledger => {
+      ledger.all_transactions.forEach(t => {
+        totalTransactions++;
+        const transactionTotal = t.items.reduce((sum, item) => {
+          const qty = (item.quantity || 0) + 
+            (t.type === 'udhar' ? (item.borrowed_stock || 0) : (item.returned_borrowed_stock || 0));
+          return sum + qty;
+        }, 0);
+        
+        if (t.type === 'udhar') {
+          totalUdhar += transactionTotal;
+        } else {
+          totalJama += transactionTotal;
+        }
+      });
+    });
 
-    csvRows.push('');
-    csvRows.push(`કુલ ગ્રાહકો (Total Clients),${clientLedgers.length}`);
-    csvRows.push(`કુલ બાકી (Grand Total),${grandTotal}`);
+    const totalOutstanding = totalUdhar - totalJama;
+
+    // Add summary row
+    csvRows.push([
+      totalTransactions,
+      totalUdhar,
+      totalJama,
+      totalOutstanding
+    ].join(','));
 
     // Save the file
     const today = new Date();
