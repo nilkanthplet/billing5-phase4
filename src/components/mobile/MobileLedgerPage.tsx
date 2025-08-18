@@ -85,17 +85,16 @@ const SORT_OPTIONS = [
   { value: 'clientNameDesc', label: 'નામ (હ થી અ)' }
 ];
 
-// Optimized CSV Export Function
+// Enhanced backup function with detailed client data
 const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
   try {
-    const csvRows: string[] = [];
+    const rows: string[] = [];
     const BOM = '\uFEFF';
-    
-    // Header
-    csvRows.push('Client Name,Client ID,Site,Mobile,Total Outstanding,Regular Outstanding,Borrowed Outstanding,Total Transactions,Last Activity,Has Activity');
+    const separator = '----------------------------------------';
     
     // Process each client
     clientLedgers.forEach((ledger) => {
+      // Calculate balances
       const borrowedStockBalance = ledger.all_transactions.reduce((bSum, t) => {
         if (t.type === 'udhar') {
           return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
@@ -104,51 +103,80 @@ const exportDetailedCSV = (clientLedgers: ClientLedger[]) => {
         }
       }, 0);
 
+      // Group transactions by plate size
+      const plateSizeBalances = new Map<string, { udhar: number; jama: number; current: number }>();
+      
+      ledger.all_transactions.forEach(t => {
+        t.items.forEach(item => {
+          const plateSize = item.plate_size;
+          const current = plateSizeBalances.get(plateSize) || { udhar: 0, jama: 0, current: 0 };
+          
+          if (t.type === 'udhar') {
+            current.udhar += (item.quantity || 0) + (item.borrowed_stock || 0);
+          } else {
+            current.jama += (item.quantity || 0) + (item.returned_borrowed_stock || 0);
+          }
+          
+          current.current = current.udhar - current.jama;
+          plateSizeBalances.set(plateSize, current);
+        });
+      });
+
+      // Format client header
+      rows.push(separator);
+      rows.push(`ગ્રાહક: ${ledger.client.name}`);
+      rows.push(`આઈડી: ${ledger.client.id}`);
+      rows.push(`સાઈટ: ${ledger.client.site || 'N/A'}`);
+      rows.push(`મોબાઈલ: ${ledger.client.mobile_number || 'N/A'}`);
+      rows.push(separator);
+      
+      // Format plate size balances
+      rows.push('પ્લેટ સાઈઝ વાર હિસાબ:');
+      plateSizeBalances.forEach((balance, plateSize) => {
+        rows.push(`${plateSize}:`);
+        rows.push(`  ઉધાર: ${balance.udhar} નંગ`);
+        rows.push(`  જમા: ${balance.jama} નંગ`);
+        rows.push(`  ચાલુ નંગ: ${balance.current} નંગ`);
+      });
+      rows.push(separator);
+      
+      // Add total outstanding
       const totalOutstanding = ledger.total_outstanding + borrowedStockBalance;
-      const lastActivity = ledger.all_transactions.length > 0 
-        ? new Date(ledger.all_transactions[0].date).toLocaleDateString('en-GB')
-        : 'Never';
+      rows.push(`કુલ બાકી: ${totalOutstanding} નંગ`);
+      rows.push('');  // Empty line between clients
 
-      const cleanText = (text: string | null | undefined) => {
-        if (!text) return 'N/A';
-        return String(text).replace(/"/g, '""');
-      };
-
-      csvRows.push([
-        `"${cleanText(ledger.client.name)}"`,
-        `"${cleanText(ledger.client.id)}"`,
-        `"${cleanText(ledger.client.site)}"`,
-        `"${cleanText(ledger.client.mobile_number)}"`,
-        totalOutstanding,
-        ledger.total_outstanding,
-        borrowedStockBalance,
-        ledger.all_transactions.length,
-        `"${lastActivity}"`,
-        ledger.has_activity ? 'Yes' : 'No'
-      ].join(','));
+      // Format transactions
+      if (ledger.all_transactions.length > 0) {
+        rows.push('છેલ્લા વ્યવહારો:');
+        ledger.all_transactions.slice(0, 5).forEach(t => {  // Show last 5 transactions
+          const date = new Date(t.date).toLocaleDateString('gu-IN');
+          const type = t.type === 'udhar' ? 'ઉધાર' : 'જમા';
+          rows.push(`${date} - ${type}`);
+          t.items.forEach(item => {
+            const qty = (item.quantity || 0) + (t.type === 'udhar' ? (item.borrowed_stock || 0) : (item.returned_borrowed_stock || 0));
+            rows.push(`  ${item.plate_size}: ${qty} નંગ`);
+          });
+        });
+      }
+      rows.push('\n');  // Double empty line between clients
     });
 
-    const csvContent = BOM + csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
+    // Save the file
     const today = new Date();
     const dateString = today.toISOString().split('T')[0];
-    const filename = `નીલકંઠ-પ્લેટ-ડેપો-બેકઅપ-${dateString}.csv`;
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    
+    const csvContent = BOM + rows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/plain;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `નીલકંઠ-પ્લેટ-ડેપો-બેકઅપ-${dateString}.txt`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
+    window.URL.revokeObjectURL(url);
     return true;
   } catch (error) {
-    console.error('CSV Export Error:', error);
+    console.error('Error creating backup:', error);
     return false;
   }
 };
@@ -512,20 +540,19 @@ export function MobileLedgerPage() {
           <h1 className="mb-1 text-sm font-bold text-gray-900">ખાતાવહી</h1>
           <p className="mb-3 text-xs text-blue-700">ગ્રાહક ભાડા ઇતિહાસ</p>
           
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            <div className="p-1.5 bg-white border border-blue-100 rounded-lg shadow-sm">
-              <p className="text-xs font-medium text-blue-600">કુલ ગ્રાહકો</p>
-              <p className="text-sm font-bold text-gray-900">{clientLedgers.length}</p>
-            </div>
-            <div className="p-1.5 bg-white border border-blue-100 rounded-lg shadow-sm">
-              <p className="text-xs font-medium text-blue-600">ફિલ્ટર્ડ</p>
-              <p className="text-sm font-bold text-gray-900">{sortedLedgers.length}</p>
-            </div>
-            <div className="p-1.5 bg-white border border-blue-100 rounded-lg shadow-sm">
-              <p className="text-xs font-medium text-blue-600">કુલ બાકી</p>
-              <p className="text-sm font-bold text-gray-900">
-                {sortedLedgers.reduce((sum, l) => {
+        </div>
+
+        {/* Search and Filter Controls - Combined in One Line */}
+        <div className="space-y-2">
+          {/* Combined Stats and Backup Button in One Line */}
+          <div className="flex items-center gap-2">
+            {/* Stats in Mini Pills */}
+            <div className="flex items-center flex-1 gap-2">
+              <div className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full">
+                કુલ ગ્રાહકો: {clientLedgers.length}
+              </div>
+              <div className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 rounded-full">
+                કુલ બાકી: {sortedLedgers.reduce((sum, l) => {
                   const borrowedStock = l.all_transactions.reduce((bSum, t) => {
                     if (t.type === 'udhar') {
                       return bSum + t.items.reduce((itemSum, item) => itemSum + (item.borrowed_stock || 0), 0);
@@ -535,13 +562,28 @@ export function MobileLedgerPage() {
                   }, 0);
                   return sum + l.total_outstanding + borrowedStock;
                 }, 0)}
-              </p>
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Search and Filter Controls - Combined in One Line */}
-        <div className="space-y-2">
+            {/* Backup Button */}
+            <button
+              onClick={handleBackupData}
+              disabled={exportingCSV || sortedLedgers.length === 0}
+              className="flex items-center justify-center gap-2 px-3 py-1.5 text-xs font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {exportingCSV ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
+                  બેકઅપ...
+                </>
+              ) : (
+                <>
+                  <FileDown className="w-3 h-3" />
+                  બેકઅપ
+                </>
+              )}
+            </button>
+          </div>
           {/* Combined Search and Filter Bar */}
           <div className="flex gap-2">
             {/* Search Input - Takes most space */}
@@ -570,7 +612,7 @@ export function MobileLedgerPage() {
               )}
             </button>
             
-            {/* Reset Button - Only show when filters are active */}
+              {/* Reset Filter Button */}
             {hasActiveFilters && (
               <button
                 onClick={resetFilters}
@@ -581,7 +623,8 @@ export function MobileLedgerPage() {
             )}
           </div>
 
-          {/* Compact Filter Panel - Only Sorting */}
+
+          {/* Sort Options Panel */}
           {showFilters && (
             <div className="p-3 space-y-3 bg-white border-2 border-blue-100 rounded-lg shadow-lg">
               <div className="grid grid-cols-1 gap-2">
@@ -600,29 +643,6 @@ export function MobileLedgerPage() {
               </div>
             </div>
           )}
-
-          {/* Backup Button */}
-          <button
-            onClick={handleBackupData}
-            disabled={exportingCSV || sortedLedgers.length === 0}
-            className="flex items-center justify-center w-full gap-2 px-3 py-2 text-xs font-medium text-white transition-all duration-200 transform rounded-lg shadow-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 hover:shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {exportingCSV ? (
-              <>
-                <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
-                CSV બનાવી રહ્યું છે...
-              </>
-            ) : (
-              <>
-                <FileDown className="w-3 h-3" />
-                CSV બેકઅપ ડાઉનલોડ કરો ({sortedLedgers.length})
-              </>
-            )}
-          </button>
-
-          <p className="text-xs text-center text-gray-600">
-            📊 {sortedLedgers.length} ગ્રાહકોની ફિલ્ટર્ડ બેકઅપ ફાઇલ
-          </p>
         </div>
 
         {/* Client Cards */}
