@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../contexts/AuthContext';
 
 export function AuthScreen() {
   const [email, setEmail] = useState('');
