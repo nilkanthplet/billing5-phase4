@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Link } from 'react-router-dom';
+import { Database } from '../lib/supabase';
 import { 
   Download, 
   Eye, 
@@ -20,34 +20,26 @@ import {
   Lock,
   ArrowLeft,
   Package,
-  Plus
+  Plus,
+  MapPin,
+  Phone,
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
-import { T, useTranslation } from '../contexts/LanguageContext';
 import { generateJPGChallan, downloadJPGChallan } from '../utils/jpgChallanGenerator';
 import { PrintableChallan } from './challans/PrintableChallan';
 import { ChallanData } from './challans/types';
 import { useAuth } from '../hooks/useAuth';
 
 const PLATE_SIZES = [
-  '2 X 3',
-  '21 X 3',
-  '18 X 3',
-  '15 X 3',
-  '12 X 3',
-  '9 X 3',
-  'પતરા',
-  '2 X 2',
-  '2 ફુટ'
+  '2 X 3', '21 X 3', '18 X 3', '15 X 3', '12 X 3',
+  '9 X 3', 'પતરા', '2 X 2', '2 ફુટ'
 ];
 
-interface Client {
-  id: string;
-  name: string;
-  site: string;
-  mobile_number: string;
-}
+type Client = Database['public']['Tables']['clients']['Row'];
+type Stock = Database['public']['Tables']['stock']['Row'];
 
 interface ChallanItem {
   id: number;
@@ -91,6 +83,29 @@ interface JamaChallan {
   driver_name?: string | null;
 }
 
+interface ClientLedger {
+  client: Client;
+  udhar_challans: UdharChallan[];
+  jama_challans: JamaChallan[];
+  total_outstanding: number;
+  has_activity: boolean;
+  all_transactions: Array<{
+    type: 'udhar' | 'jama';
+    id: number;
+    number: string;
+    date: string;
+    client_id: string;
+    items: Array<{
+      plate_size: string;
+      quantity: number;
+      borrowed_stock?: number;
+      returned_borrowed_stock?: number;
+      notes?: string;
+    }>;
+    driver_name?: string;
+  }>;
+}
+
 interface EditingChallan {
   id: number;
   type: 'udhar' | 'jama';
@@ -98,16 +113,15 @@ interface EditingChallan {
   date: string;
   client_id: string;
   plates: Record<string, number>;
-  note: string;
+  borrowedStock: Record<string, number>;
+  notes: Record<string, string>;
   driver_name: string;
 }
 
-interface ClientLedger {
-  client: Client;
-  udhar_challans: UdharChallan[];
-  jama_challans: JamaChallan[];
-  total_outstanding: number;
-  has_activity: boolean;
+interface StockValidation {
+  size: string;
+  requested: number;
+  available: number;
 }
 
 export function ChallanManagementPage() {
@@ -117,17 +131,19 @@ export function ChallanManagementPage() {
   const [clientLedger, setClientLedger] = useState<ClientLedger | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [expandedChallan, setExpandedChallan] = useState<number | null>(null);
+  const [expandedClient, setExpandedClient] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<number | null>(null);
   const [challanData, setChallanData] = useState<ChallanData | null>(null);
-  const { language } = useTranslation();
   const [editingChallan, setEditingChallan] = useState<EditingChallan | null>(null);
   const [editLoading, setEditLoading] = useState(false);
-  const [stockData, setStockData] = useState<any[]>([]);
+  const [stockData, setStockData] = useState<Stock[]>([]);
+  const [stockValidation, setStockValidation] = useState<StockValidation[]>([]);
+  const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
 
   useEffect(() => {
     fetchClients();
     fetchStockData();
+    fetchPreviousDriverNames();
   }, []);
 
   const fetchStockData = async () => {
@@ -141,6 +157,34 @@ export function ChallanManagementPage() {
       setStockData(data || []);
     } catch (error) {
       console.error('Error fetching stock data:', error);
+    }
+  };
+
+  const fetchPreviousDriverNames = async () => {
+    try {
+      const [{ data: challanDrivers }, { data: returnDrivers }] = await Promise.all([
+        supabase
+          .from('challans')
+          .select('driver_name')
+          .not('driver_name', 'is', null)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('returns')
+          .select('driver_name')
+          .not('driver_name', 'is', null)
+          .order('return_date', { ascending: false })
+      ]);
+
+      if (challanDrivers || returnDrivers) {
+        const allDrivers = [...(challanDrivers || []), ...(returnDrivers || [])]
+          .map(record => record.driver_name)
+          .filter((name): name is string => name !== null && name.trim() !== '');
+        
+        const uniqueDrivers = [...new Set(allDrivers)];
+        setPreviousDrivers(uniqueDrivers);
+      }
+    } catch (error) {
+      console.error('Error fetching previous driver names:', error);
     }
   };
 
@@ -160,36 +204,32 @@ export function ChallanManagementPage() {
     }
   };
 
-  const fetchClientChallans = async (client: Client) => {
+  const fetchClientLedger = async (client: Client) => {
     try {
       setLoading(true);
       
-      // Fetch Udhar Challans
-      const { data: udharData, error: udharError } = await supabase
-        .from('challans')
-        .select(`
-          *,
-          challan_items(*)
-        `)
-        .eq('client_id', client.id)
-        .order('challan_date', { ascending: false });
+      // Fetch all challans and returns for this client
+      const [challansResponse, returnsResponse] = await Promise.all([
+        supabase
+          .from('challans')
+          .select(`*, challan_items (*)`)
+          .eq('client_id', client.id)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('returns')
+          .select(`*, return_line_items (*)`)
+          .eq('client_id', client.id)
+          .order('created_at', { ascending: false })
+      ]);
 
-      if (udharError) throw udharError;
+      if (challansResponse.error) throw challansResponse.error;
+      if (returnsResponse.error) throw returnsResponse.error;
 
-      // Fetch Jama Challans
-      const { data: jamaData, error: jamaError } = await supabase
-        .from('returns')
-        .select(`
-          *,
-          return_line_items(*)
-        `)
-        .eq('client_id', client.id)
-        .order('return_date', { ascending: false });
-
-      if (jamaError) throw jamaError;
+      const { data: challans } = challansResponse;
+      const { data: returns } = returnsResponse;
 
       // Transform data
-      const transformedUdharData = udharData?.map(challan => ({
+      const transformedUdharData = challans?.map(challan => ({
         id: challan.id,
         challan_number: challan.challan_number,
         challan_date: challan.challan_date,
@@ -197,39 +237,76 @@ export function ChallanManagementPage() {
         client: client,
         challan_items: challan.challan_items as ChallanItem[],
         total_plates: challan.challan_items?.reduce(
-          (sum: number, item: ChallanItem) => sum + (item.borrowed_quantity || 0), 
+          (sum: number, item: ChallanItem) => sum + (item.borrowed_quantity || 0) + (item.borrowed_stock || 0), 
           0
         ),
         driver_name: challan.driver_name
       })) || [];
 
-      const transformedJamaData = jamaData?.map(challan => ({
-        id: challan.id,
-        return_challan_number: challan.return_challan_number,
-        return_date: challan.return_date,
+      const transformedJamaData = returns?.map(returnRecord => ({
+        id: returnRecord.id,
+        return_challan_number: returnRecord.return_challan_number,
+        return_date: returnRecord.return_date,
         client: client,
-        return_line_items: challan.return_line_items as ReturnLineItem[],
-        total_plates: challan.return_line_items?.reduce(
-          (sum: number, item: ReturnLineItem) => sum + (item.returned_quantity || 0), 
+        return_line_items: returnRecord.return_line_items as ReturnLineItem[],
+        total_plates: returnRecord.return_line_items?.reduce(
+          (sum: number, item: ReturnLineItem) => sum + (item.returned_quantity || 0) + (item.returned_borrowed_stock || 0), 
           0
         ),
-        driver_name: challan.driver_name
+        driver_name: returnRecord.driver_name
       })) || [];
 
       // Calculate outstanding
-      const totalBorrowed = transformedUdharData.reduce((sum, challan) => sum + challan.total_plates, 0);
-      const totalReturned = transformedJamaData.reduce((sum, challan) => sum + challan.total_plates, 0);
+      const totalBorrowed = transformedUdharData.reduce((sum, challan) => 
+        sum + challan.challan_items.reduce((itemSum, item) => 
+          itemSum + item.borrowed_quantity + (item.borrowed_stock || 0), 0), 0);
+      const totalReturned = transformedJamaData.reduce((sum, returnRecord) => 
+        sum + returnRecord.return_line_items.reduce((itemSum, item) => 
+          itemSum + item.returned_quantity + (item.returned_borrowed_stock || 0), 0), 0);
       const total_outstanding = totalBorrowed - totalReturned;
+
+      // Create all transactions array
+      const allTransactions = [
+        ...transformedUdharData.map(challan => ({
+          type: 'udhar' as const,
+          id: challan.id,
+          number: challan.challan_number,
+          date: challan.challan_date,
+          client_id: challan.client.id,
+          items: challan.challan_items.map(item => ({
+            plate_size: item.plate_size,
+            quantity: item.borrowed_quantity,
+            borrowed_stock: item.borrowed_stock || 0,
+            notes: item.partner_stock_notes || ''
+          })),
+          driver_name: challan.driver_name
+        })),
+        ...transformedJamaData.map(returnRecord => ({
+          type: 'jama' as const,
+          id: returnRecord.id,
+          number: returnRecord.return_challan_number,
+          date: returnRecord.return_date,
+          client_id: returnRecord.client.id,
+          items: returnRecord.return_line_items.map(item => ({
+            plate_size: item.plate_size,
+            quantity: item.returned_quantity,
+            returned_borrowed_stock: item.returned_borrowed_stock || 0,
+            notes: item.damage_notes || ''
+          })),
+          driver_name: returnRecord.driver_name
+        }))
+      ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       setClientLedger({
         client,
         udhar_challans: transformedUdharData,
         jama_challans: transformedJamaData,
         total_outstanding,
-        has_activity: transformedUdharData.length > 0 || transformedJamaData.length > 0
+        has_activity: transformedUdharData.length > 0 || transformedJamaData.length > 0,
+        all_transactions: allTransactions
       });
     } catch (error) {
-      console.error('Error fetching client challans:', error);
+      console.error('Error fetching client ledger:', error);
     } finally {
       setLoading(false);
     }
@@ -237,65 +314,71 @@ export function ChallanManagementPage() {
 
   const handleClientSelect = (client: Client) => {
     setSelectedClient(client);
-    setExpandedChallan(null);
+    setExpandedClient(null);
     setEditingChallan(null);
-    fetchClientChallans(client);
+    fetchClientLedger(client);
   };
 
-  const handleEditChallan = async (challan: UdharChallan | JamaChallan, type: 'udhar' | 'jama') => {
+  const handleEditChallan = async (transaction: any) => {
     try {
-      if (type === 'udhar') {
+      if (transaction.type === 'udhar') {
         const { data, error } = await supabase
           .from('challans')
-          .select(`
-            *,
-            challan_items(*)
-          `)
-          .eq('id', challan.id)
+          .select(`*, challan_items(*)`)
+          .eq('id', transaction.id)
           .single();
 
         if (error) throw error;
 
         const plates: Record<string, number> = {};
+        const borrowedStock: Record<string, number> = {};
+        const notes: Record<string, string> = {};
+        
         (data.challan_items as ChallanItem[]).forEach((item: ChallanItem) => {
           plates[item.plate_size] = item.borrowed_quantity;
+          borrowedStock[item.plate_size] = item.borrowed_stock || 0;
+          notes[item.plate_size] = item.partner_stock_notes || '';
         });
 
         setEditingChallan({
-          id: challan.id,
+          id: transaction.id,
           type: 'udhar',
           challan_number: data.challan_number,
           date: data.challan_date,
           client_id: data.client_id,
           plates,
-          note: '',
+          borrowedStock,
+          notes,
           driver_name: data.driver_name || ''
         });
       } else {
         const { data, error } = await supabase
           .from('returns')
-          .select(`
-            *,
-            return_line_items(*)
-          `)
-          .eq('id', challan.id)
+          .select(`*, return_line_items(*)`)
+          .eq('id', transaction.id)
           .single();
 
         if (error) throw error;
 
         const plates: Record<string, number> = {};
+        const borrowedStock: Record<string, number> = {};
+        const notes: Record<string, string> = {};
+        
         (data.return_line_items as ReturnLineItem[]).forEach((item: ReturnLineItem) => {
           plates[item.plate_size] = item.returned_quantity;
+          borrowedStock[item.plate_size] = item.returned_borrowed_stock || 0;
+          notes[item.plate_size] = item.damage_notes || '';
         });
 
         setEditingChallan({
-          id: challan.id,
+          id: transaction.id,
           type: 'jama',
           challan_number: data.return_challan_number,
           date: data.return_date,
           client_id: data.client_id,
           plates,
-          note: data.return_line_items[0]?.damage_notes || '',
+          borrowedStock,
+          notes,
           driver_name: data.driver_name || ''
         });
       }
@@ -304,6 +387,29 @@ export function ChallanManagementPage() {
       alert('ચલણ વિગતો લોડ કરવામાં ભૂલ.');
     }
   };
+
+  const validateStockAvailability = useCallback(() => {
+    if (!editingChallan || editingChallan.type !== 'udhar') return;
+    
+    const insufficientStock: StockValidation[] = [];
+    Object.entries(editingChallan.plates).forEach(([size, quantity]) => {
+      if (quantity > 0) {
+        const stock = stockData.find(s => s.plate_size === size);
+        if (stock && quantity > stock.available_quantity) {
+          insufficientStock.push({
+            size,
+            requested: quantity,
+            available: stock.available_quantity
+          });
+        }
+      }
+    });
+    setStockValidation(insufficientStock);
+  }, [editingChallan, stockData]);
+
+  useEffect(() => {
+    validateStockAvailability();
+  }, [validateStockAvailability]);
 
   const handleSaveEdit = async () => {
     if (!editingChallan) return;
@@ -334,12 +440,13 @@ export function ChallanManagementPage() {
 
         // Insert new items
         const newItems = Object.entries(editingChallan.plates)
-          .filter(([_, quantity]) => quantity > 0)
+          .filter(([_, quantity]) => quantity > 0 || editingChallan.borrowedStock[_] > 0)
           .map(([plate_size, quantity]) => ({
             challan_id: editingChallan.id,
             plate_size,
             borrowed_quantity: quantity,
-            partner_stock_notes: editingChallan.note?.trim() || null
+            borrowed_stock: editingChallan.borrowedStock[plate_size] || 0,
+            partner_stock_notes: editingChallan.notes[plate_size]?.trim() || null
           }));
 
         if (newItems.length > 0) {
@@ -373,12 +480,13 @@ export function ChallanManagementPage() {
 
         // Insert new items
         const newItems = Object.entries(editingChallan.plates)
-          .filter(([_, quantity]) => quantity > 0)
+          .filter(([_, quantity]) => quantity > 0 || editingChallan.borrowedStock[_] > 0)
           .map(([plate_size, quantity]) => ({
             return_id: editingChallan.id,
             plate_size,
             returned_quantity: quantity,
-            damage_notes: editingChallan.note || null
+            returned_borrowed_stock: editingChallan.borrowedStock[plate_size] || 0,
+            damage_notes: editingChallan.notes[plate_size] || null
           }));
 
         if (newItems.length > 0) {
@@ -392,7 +500,7 @@ export function ChallanManagementPage() {
 
       setEditingChallan(null);
       if (selectedClient) {
-        await fetchClientChallans(selectedClient);
+        await fetchClientLedger(selectedClient);
       }
       alert('ચલણ સફળતાપૂર્વક અપડેટ થયું!');
     } catch (error) {
@@ -429,7 +537,7 @@ export function ChallanManagementPage() {
 
       setEditingChallan(null);
       if (selectedClient) {
-        await fetchClientChallans(selectedClient);
+        await fetchClientLedger(selectedClient);
       }
       alert('ચલણ સફળતાપૂર્વક ડિલીટ થયું!');
     } catch (error) {
@@ -440,46 +548,42 @@ export function ChallanManagementPage() {
     }
   };
 
-  const handleDownload = async (challan: UdharChallan | JamaChallan, type: 'udhar' | 'jama') => {
+  const handleDownload = async (transaction: any) => {
     try {
-      setDownloading(challan.id);
+      setDownloading(transaction.id);
       
+      const client = selectedClient!;
       const challanDataForPDF: ChallanData = {
-        type: type === 'udhar' ? 'issue' : 'return',
-        challan_number: type === 'udhar' 
-          ? (challan as UdharChallan).challan_number 
-          : (challan as JamaChallan).return_challan_number,
-        date: type === 'udhar' 
-          ? (challan as UdharChallan).challan_date 
-          : (challan as JamaChallan).return_date,
+        type: transaction.type === 'udhar' ? 'issue' : 'return',
+        challan_number: transaction.number,
+        date: transaction.date,
         client: {
-          id: challan.client.id,
-          name: challan.client.name,
-          site: challan.client.site || '',
-          mobile: challan.client.mobile_number || ''
+          id: client.id,
+          name: client.name,
+          site: client.site || '',
+          mobile: client.mobile_number || ''
         },
-        driver_name: challan.driver_name || undefined,
-        plates: type === 'udhar' 
-          ? (challan as UdharChallan).challan_items.map(item => ({
-              size: item.plate_size,
-              quantity: item.borrowed_quantity,
-              borrowed_stock: item.borrowed_stock || 0,
-              notes: item.partner_stock_notes || '',
-            }))
-          : (challan as JamaChallan).return_line_items.map(item => ({
-              size: item.plate_size,
-              quantity: item.returned_quantity,
-              notes: item.damage_notes || '',
-            })),
-        total_quantity: challan.total_plates
+        driver_name: transaction.driver_name || undefined,
+        plates: transaction.items.map((item: any) => ({
+          size: item.plate_size,
+          quantity: item.quantity,
+          borrowed_stock: transaction.type === 'udhar' ? (item.borrowed_stock || 0) : (item.returned_borrowed_stock || 0),
+          notes: item.notes || '',
+        })),
+        total_quantity: transaction.items.reduce((sum: number, item: any) => {
+          const regularQty = item.quantity || 0;
+          const borrowedQty = transaction.type === 'udhar' 
+            ? (item.borrowed_stock || 0) 
+            : (item.returned_borrowed_stock || 0);
+          return sum + regularQty + borrowedQty;
+        }, 0)
       };
 
       setChallanData(challanDataForPDF);
-      
       await new Promise(resolve => setTimeout(resolve, 500));
 
       const jpgDataUrl = await generateJPGChallan(challanDataForPDF);
-      downloadJPGChallan(jpgDataUrl, `${type}-challan-${challanDataForPDF.challan_number}`);
+      downloadJPGChallan(jpgDataUrl, `${transaction.type}-challan-${challanDataForPDF.challan_number}`);
 
       setChallanData(null);
     } catch (error) {
@@ -490,27 +594,12 @@ export function ChallanManagementPage() {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800 border border-green-200';
-      case 'partial':
-        return 'bg-yellow-100 text-yellow-800 border border-yellow-200';
-      case 'active':
-        return 'bg-blue-100 text-blue-800 border border-blue-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border border-gray-200';
-    }
+  const getStockInfo = (size: string) => {
+    return stockData.find(s => s.plate_size === size);
   };
 
-  const getStatusText = (status: string) => {
-    const statusMap = {
-      'active': { gu: 'સક્રિય', en: 'Active' },
-      'completed': { gu: 'પૂર્ણ', en: 'Completed' },
-      'partial': { gu: 'અર્ધ', en: 'Partial' },
-      'returned': { gu: 'પરત', en: 'Returned' }
-    };
-    return statusMap[status as keyof typeof statusMap]?.[language] || status;
+  const isStockInsufficient = (size: string) => {
+    return stockValidation.some(item => item.size === size);
   };
 
   const filteredClients = clients.filter(client =>
@@ -518,10 +607,6 @@ export function ChallanManagementPage() {
     client.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     client.site.toLowerCase().includes(searchTerm.toLowerCase())
   );
-
-  const getStockInfo = (size: string) => {
-    return stockData.find(s => s.plate_size === size);
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-cyan-50">
@@ -534,13 +619,13 @@ export function ChallanManagementPage() {
         )}
       </div>
 
-      <div className="p-2 space-y-3">
+      <div className="p-4 space-y-4">
         {/* Header */}
         <div className="text-center">
-          <div className="inline-flex items-center justify-center w-8 h-8 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
-            <BookOpen className="w-4 h-4 text-white" />
+          <div className="inline-flex items-center justify-center w-10 h-10 mb-2 rounded-full shadow-lg bg-gradient-to-r from-blue-600 to-indigo-600">
+            <BookOpen className="w-5 h-5 text-white" />
           </div>
-          <h1 className="mb-1 text-sm font-bold text-gray-900">ચલણ બૂક</h1>
+          <h1 className="mb-1 text-base font-bold text-gray-900">ચલણ બૂક</h1>
           <p className="text-xs text-blue-600">ગ્રાહક પસંદ કરો અને ચલણ જુઓ</p>
         </div>
 
@@ -549,22 +634,22 @@ export function ChallanManagementPage() {
           <>
             {/* Search Bar */}
             <div className="relative">
-              <Search className="absolute w-3 h-3 text-blue-400 -translate-y-1/2 left-2 top-1/2" />
+              <Search className="absolute w-4 h-4 text-blue-400 -translate-y-1/2 left-3 top-1/2" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="ગ્રાહક શોધો..."
-                className="w-full py-2 pl-8 pr-2 text-xs transition-all duration-200 border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
+                className="w-full py-3 pl-10 pr-4 text-sm transition-all duration-200 border-2 border-blue-200 rounded-lg focus:ring-4 focus:ring-blue-100 focus:border-blue-500"
               />
             </div>
 
             {/* Client List */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               {loading ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {[...Array(5)].map((_, i) => (
-                    <div key={i} className="p-3 bg-white border border-blue-100 shadow-sm rounded-xl animate-pulse">
+                    <div key={i} className="p-4 bg-white border border-blue-100 shadow-sm rounded-xl animate-pulse">
                       <div className="w-2/3 h-4 mb-2 bg-blue-200 rounded"></div>
                       <div className="w-1/2 h-3 bg-blue-200 rounded"></div>
                     </div>
@@ -589,21 +674,25 @@ export function ChallanManagementPage() {
                     className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200 cursor-pointer"
                     onClick={() => handleClientSelect(client)}
                   >
-                    <div className="p-3">
+                    <div className="p-4">
                       <div className="flex items-center gap-3">
-                        <div className="flex items-center justify-center w-8 h-8 text-sm font-bold text-white rounded-full shadow-md bg-gradient-to-r from-blue-500 to-indigo-500">
+                        <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-white rounded-full shadow-md bg-gradient-to-r from-blue-500 to-indigo-500">
                           {client.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1">
                           <h3 className="text-sm font-bold text-gray-900">{client.name}</h3>
-                          <div className="flex items-center gap-2 text-xs text-blue-600">
-                            <span className="flex items-center gap-0.5">
-                              <Hash className="w-2 h-2" />
+                          <div className="flex items-center gap-3 text-xs text-blue-600">
+                            <span className="flex items-center gap-1">
+                              <Hash className="w-3 h-3" />
                               {client.id}
                             </span>
-                            <span className="flex items-center gap-0.5">
-                              <User className="w-2 h-2" />
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
                               {client.site}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3" />
+                              {client.mobile_number}
                             </span>
                           </div>
                         </div>
@@ -617,13 +706,13 @@ export function ChallanManagementPage() {
         ) : (
           <>
             {/* Selected Client Header */}
-            <div className="p-3 bg-white border-2 border-blue-100 shadow-lg rounded-xl">
+            <div className="p-4 bg-white border-2 border-blue-100 shadow-lg rounded-xl">
               <div className="flex items-center justify-between">
                 <button
                   onClick={() => {
                     setSelectedClient(null);
                     setClientLedger(null);
-                    setExpandedChallan(null);
+                    setExpandedClient(null);
                     setEditingChallan(null);
                   }}
                   className="flex items-center gap-2 text-blue-600 hover:text-blue-700"
@@ -634,18 +723,23 @@ export function ChallanManagementPage() {
                 <div className="text-center">
                   <h2 className="text-sm font-bold text-gray-900">{selectedClient.name}</h2>
                   <p className="text-xs text-blue-600">ID: {selectedClient.id}</p>
+                  {clientLedger && (
+                    <p className="text-xs text-red-600 font-medium">
+                      કુલ બાકી: {clientLedger.total_outstanding} પ્લેટ્સ
+                    </p>
+                  )}
                 </div>
                 <div className="w-16"></div>
               </div>
             </div>
 
-            {/* Client Challans */}
+            {/* Client Ledger View */}
             {loading ? (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
-                  <div key={i} className="p-2 bg-white border border-blue-100 shadow-sm rounded-xl animate-pulse">
-                    <div className="w-2/3 h-3 mb-1 bg-blue-200 rounded"></div>
-                    <div className="w-1/2 h-2 bg-blue-200 rounded"></div>
+                  <div key={i} className="p-3 bg-white border border-blue-100 shadow-sm rounded-xl animate-pulse">
+                    <div className="w-2/3 h-4 mb-2 bg-blue-200 rounded"></div>
+                    <div className="w-1/2 h-3 bg-blue-200 rounded"></div>
                   </div>
                 ))}
               </div>
@@ -656,36 +750,174 @@ export function ChallanManagementPage() {
                 <p className="text-xs text-blue-600">આ ગ્રાહક માટે કોઈ ચલણ બનાવવામાં આવ્યું નથી</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {/* Udhar Challans */}
-                {clientLedger?.udhar_challans.map((challan) => (
-                  <ChallanCard
-                    key={`udhar-${challan.id}`}
-                    challan={challan}
-                    type="udhar"
-                    isExpanded={expandedChallan === challan.id}
-                    onToggleExpand={() => setExpandedChallan(expandedChallan === challan.id ? null : challan.id)}
-                    onEdit={() => handleEditChallan(challan, 'udhar')}
-                    onDownload={() => handleDownload(challan, 'udhar')}
-                    downloading={downloading === challan.id}
-                    user={user}
-                  />
-                ))}
+              <div className="overflow-hidden bg-white border-2 border-blue-100 shadow-lg rounded-xl">
+                <div className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500">
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-white">
+                    <Package className="w-4 h-4" />
+                    પ્લેટ પ્રવૃત્તિ
+                  </h3>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-white bg-gradient-to-r from-blue-500 to-indigo-500">
+                        <th className="px-2 py-2 text-left font-bold">ચલણ નં.</th>
+                        <th className="px-2 py-2 text-center font-bold">તારીખ</th>
+                        <th className="px-2 py-2 text-center font-bold">કુલ</th>
+                        <th className="px-2 py-2 text-center font-bold">પ્રકાર</th>
+                        <th className="px-2 py-2 text-center font-bold">ડ્રાઈવર</th>
+                        <th className="px-2 py-2 text-center font-bold">ક્રિયાઓ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientLedger?.all_transactions.map((transaction, index) => (
+                        <tr 
+                          key={`${transaction.type}-${transaction.id}`}
+                          className={`border-b border-blue-100 hover:bg-blue-25 transition-colors ${
+                            transaction.type === 'udhar' ? 'bg-red-50' : 'bg-green-50'
+                          }`}
+                        >
+                          <td className="px-2 py-2">
+                            <div className="text-xs font-semibold text-gray-900">
+                              #{transaction.number}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <div className="text-xs font-medium text-blue-600">
+                              {format(new Date(transaction.date), 'dd/MM/yy')}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <div className="text-xs font-medium text-blue-600">
+                              {transaction.items.reduce((sum, item) => {
+                                const regularQty = item.quantity || 0;
+                                const borrowedQty = transaction.type === 'udhar' 
+                                  ? (item.borrowed_stock || 0) 
+                                  : (item.returned_borrowed_stock || 0);
+                                return sum + regularQty + borrowedQty;
+                              }, 0)}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              transaction.type === 'udhar' 
+                                ? 'bg-red-100 text-red-800' 
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {transaction.type === 'udhar' ? 'ઉધાર' : 'જમા'}
+                            </span>
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <div className="text-xs font-medium text-gray-600">
+                              {transaction.driver_name || '-'}
+                            </div>
+                          </td>
+                          <td className="px-2 py-2">
+                            <div className="flex items-center justify-center gap-1">
+                              {/* Edit Button */}
+                              {user?.isAdmin ? (
+                                <button
+                                  onClick={() => handleEditChallan(transaction)}
+                                  className="p-1 text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                                  title="એડિટ"
+                                >
+                                  <Edit className="w-3 h-3" />
+                                </button>
+                              ) : (
+                                <div className="p-1 text-gray-400">
+                                  <Lock className="w-3 h-3" />
+                                </div>
+                              )}
+                              
+                              {/* View Button */}
+                              <button
+                                onClick={() => setExpandedClient(
+                                  expandedClient === `${transaction.type}-${transaction.id}` 
+                                    ? null 
+                                    : `${transaction.type}-${transaction.id}`
+                                )}
+                                className="p-1 text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                                title="જુઓ"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </button>
+                              
+                              {/* Download Button */}
+                              <button
+                                onClick={() => handleDownload(transaction)}
+                                disabled={downloading === transaction.id}
+                                className="p-1 text-green-600 rounded hover:bg-green-50 transition-colors disabled:opacity-50"
+                                title="ડાઉનલોડ"
+                              >
+                                {downloading === transaction.id ? (
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                ) : (
+                                  <Download className="w-3 h-3" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-                {/* Jama Challans */}
-                {clientLedger?.jama_challans.map((challan) => (
-                  <ChallanCard
-                    key={`jama-${challan.id}`}
-                    challan={challan}
-                    type="jama"
-                    isExpanded={expandedChallan === challan.id}
-                    onToggleExpand={() => setExpandedChallan(expandedChallan === challan.id ? null : challan.id)}
-                    onEdit={() => handleEditChallan(challan, 'jama')}
-                    onDownload={() => handleDownload(challan, 'jama')}
-                    downloading={downloading === challan.id}
-                    user={user}
-                  />
-                ))}
+                {/* Expanded Transaction Details */}
+                <AnimatePresence>
+                  {expandedClient && clientLedger?.all_transactions.map((transaction) => {
+                    const isExpanded = expandedClient === `${transaction.type}-${transaction.id}`;
+                    if (!isExpanded) return null;
+
+                    return (
+                      <motion.div
+                        key={`expanded-${transaction.type}-${transaction.id}`}
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50"
+                      >
+                        <div className="p-3 space-y-3">
+                          <h4 className="text-sm font-bold text-blue-900">પ્લેટ વિગતો</h4>
+                          <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                            {transaction.items.map((item, index) => {
+                              const regularQty = item.quantity || 0;
+                              const borrowedQty = transaction.type === 'udhar' 
+                                ? (item.borrowed_stock || 0) 
+                                : (item.returned_borrowed_stock || 0);
+                              
+                              if (regularQty === 0 && borrowedQty === 0) return null;
+
+                              return (
+                                <div key={index} className="p-2 bg-white border border-blue-200 rounded-lg">
+                                  <div className="text-xs font-medium text-gray-900">{item.plate_size}</div>
+                                  <div className="flex items-center gap-1 mt-1">
+                                    {regularQty > 0 && (
+                                      <span className={`text-xs font-bold ${
+                                        transaction.type === 'udhar' ? 'text-red-600' : 'text-green-600'
+                                      }`}>
+                                        {regularQty}
+                                      </span>
+                                    )}
+                                    {borrowedQty > 0 && (
+                                      <span className="text-xs font-bold text-purple-600">
+                                        +{borrowedQty}*
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.notes && (
+                                    <div className="mt-1 text-xs text-blue-500">{item.notes}</div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
             )}
           </>
@@ -693,27 +925,27 @@ export function ChallanManagementPage() {
 
         {/* Edit Modal */}
         {editingChallan && user?.isAdmin && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-2 bg-blue-900/30 backdrop-blur-sm">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-4 border-blue-200">
-              <div className="p-3 text-white bg-gradient-to-r from-blue-600 to-indigo-600">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-blue-900/30 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border-4 border-blue-200">
+              <div className="p-4 text-white bg-gradient-to-r from-blue-600 to-indigo-600">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-semibold">
+                  <h2 className="text-base font-semibold">
                     {editingChallan.type === 'udhar' ? 'ઉધાર' : 'જમા'} ચલણ એડિટ કરો
                   </h2>
                   <button
                     onClick={() => setEditingChallan(null)}
-                    className="p-1.5 transition-colors rounded-lg hover:bg-blue-500/20"
+                    className="p-2 transition-colors rounded-lg hover:bg-blue-500/20"
                   >
-                    <X className="w-4 h-4" />
+                    <X className="w-5 h-5" />
                   </button>
                 </div>
               </div>
 
-              <div className="p-3 space-y-3">
+              <div className="p-4 space-y-4">
                 {/* Basic Details */}
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div>
-                    <label className="block mb-1 text-xs font-medium text-blue-700">
+                    <label className="block mb-2 text-sm font-medium text-blue-700">
                       ચલણ નંબર
                     </label>
                     <input
@@ -723,11 +955,11 @@ export function ChallanManagementPage() {
                         ...editingChallan,
                         challan_number: e.target.value
                       })}
-                      className="w-full px-2 py-1.5 text-xs border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                      className="w-full px-3 py-2 text-sm border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 text-xs font-medium text-blue-700">
+                    <label className="block mb-2 text-sm font-medium text-blue-700">
                       તારીખ
                     </label>
                     <input
@@ -737,14 +969,14 @@ export function ChallanManagementPage() {
                         ...editingChallan,
                         date: e.target.value
                       })}
-                      className="w-full px-2 py-1.5 text-xs border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                      className="w-full px-3 py-2 text-sm border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
                     />
                   </div>
                 </div>
 
                 {/* Driver Name */}
                 <div>
-                  <label className="block mb-1 text-xs font-medium text-blue-700">
+                  <label className="block mb-2 text-sm font-medium text-blue-700">
                     ડ્રાઈવરનું નામ
                   </label>
                   <input
@@ -754,92 +986,184 @@ export function ChallanManagementPage() {
                       ...editingChallan,
                       driver_name: e.target.value
                     })}
-                    className="w-full px-2 py-1.5 text-xs border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
+                    list="driver-suggestions"
+                    className="w-full px-3 py-2 text-sm border-2 border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
                     placeholder="ડ્રાઈવરનું નામ દાખલ કરો"
                   />
+                  <datalist id="driver-suggestions">
+                    {previousDrivers.map((driver, index) => (
+                      <option key={index} value={driver} />
+                    ))}
+                  </datalist>
                 </div>
 
-                {/* Plate Quantities */}
+                {/* Stock Warning */}
+                {stockValidation.length > 0 && editingChallan.type === 'udhar' && (
+                  <div className="flex items-center gap-2 p-3 text-amber-600 border rounded-lg bg-amber-50 border-amber-200">
+                    <AlertTriangle className="w-4 h-4" />
+                    <span className="text-sm font-medium">કેટલીક વસ્તુઓમાં અપૂરતો સ્ટોક છે.</span>
+                  </div>
+                )}
+
+                {/* Plate Quantities Table */}
                 <div>
-                  <label className="block mb-1.5 text-xs font-medium text-blue-700">
+                  <label className="block mb-3 text-sm font-medium text-blue-700">
                     પ્લેટ માત્રા
                   </label>
-                  <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3">
-                    {PLATE_SIZES.map(size => {
-                      const stockInfo = getStockInfo(size);
-                      return (
-                        <div key={size} className="p-1.5 border-2 border-blue-200 rounded-lg">
-                          <label className="block mb-0.5 text-xs font-medium text-blue-700">
-                            {size}
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            value={editingChallan.plates[size] || ''}
-                            onChange={(e) => setEditingChallan({
-                              ...editingChallan,
-                              plates: {
-                                ...editingChallan.plates,
-                                [size]: parseInt(e.target.value) || 0
-                              }
-                            })}
-                            className="w-full px-1 py-0.5 text-xs text-center border border-blue-300 rounded focus:ring-1 focus:ring-blue-200 focus:border-blue-500"
-                            placeholder="0"
-                          />
-                          {stockInfo && editingChallan.type === 'udhar' && (
-                            <div className="mt-0.5 text-xs text-gray-500 text-center">
-                              સ્ટોક: {stockInfo.available_quantity}
-                            </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border border-gray-200 rounded-lg">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">સાઇઝ</th>
+                          {editingChallan.type === 'udhar' && (
+                            <th className="px-3 py-2 text-center font-medium text-gray-700">સ્ટોક</th>
                           )}
-                        </div>
-                      );
-                    })}
+                          <th className="px-3 py-2 text-center font-medium text-gray-700">માત્રા</th>
+                          <th className="px-3 py-2 text-center font-medium text-gray-700">બિજો ડેપો</th>
+                          <th className="px-3 py-2 text-center font-medium text-gray-700">નોંધ</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {PLATE_SIZES.map(size => {
+                          const stockInfo = getStockInfo(size);
+                          const isInsufficient = isStockInsufficient(size);
+                          
+                          return (
+                            <tr key={size} className={`border-b hover:bg-gray-50 ${isInsufficient ? 'bg-red-50' : ''}`}>
+                              <td className="px-3 py-2">
+                                <div className="flex items-center gap-2">
+                                  <Package className="w-3 h-3 text-gray-500" />
+                                  <span className="font-medium text-gray-900">{size}</span>
+                                </div>
+                              </td>
+                              {editingChallan.type === 'udhar' && (
+                                <td className="px-3 py-2 text-center">
+                                  <span className={`text-xs ${stockInfo ? 'text-gray-600' : 'text-red-500'}`}>
+                                    {stockInfo ? stockInfo.available_quantity : 'N/A'}
+                                  </span>
+                                </td>
+                              )}
+                              <td className="px-3 py-2 text-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editingChallan.plates[size] || ''}
+                                  onChange={(e) => setEditingChallan({
+                                    ...editingChallan,
+                                    plates: {
+                                      ...editingChallan.plates,
+                                      [size]: parseInt(e.target.value) || 0
+                                    }
+                                  })}
+                                  className={`w-16 px-2 py-1 text-xs text-center border rounded focus:ring-1 ${
+                                    isInsufficient 
+                                      ? 'border-red-300 focus:ring-red-200 focus:border-red-500' 
+                                      : 'border-gray-300 focus:ring-blue-200 focus:border-blue-500'
+                                  }`}
+                                  placeholder="0"
+                                />
+                                {isInsufficient && (
+                                  <div className="mt-1 text-xs text-red-600">
+                                    સ્ટોક: {stockValidation.find(item => item.size === size)?.available}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={editingChallan.borrowedStock[size] || ''}
+                                  onChange={(e) => setEditingChallan({
+                                    ...editingChallan,
+                                    borrowedStock: {
+                                      ...editingChallan.borrowedStock,
+                                      [size]: parseInt(e.target.value) || 0
+                                    }
+                                  })}
+                                  className="w-16 px-2 py-1 text-xs text-center border border-purple-300 rounded bg-purple-50 focus:ring-1 focus:ring-purple-200 focus:border-purple-500"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                <input
+                                  type="text"
+                                  value={editingChallan.notes[size] || ''}
+                                  onChange={(e) => setEditingChallan({
+                                    ...editingChallan,
+                                    notes: {
+                                      ...editingChallan.notes,
+                                      [size]: e.target.value
+                                    }
+                                  })}
+                                  className="w-20 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-200 focus:border-blue-500"
+                                  placeholder="નોંધ"
+                                />
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
 
-                {/* Note */}
-                <div>
-                  <label className="block mb-1 text-xs font-medium text-blue-700">
-                    નોંધ
-                  </label>
-                  <textarea
-                    value={editingChallan.note}
-                    onChange={(e) => setEditingChallan({
-                      ...editingChallan,
-                      note: e.target.value
-                    })}
-                    className="w-full px-2 py-1.5 text-xs border-2 border-blue-200 rounded-lg resize-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500"
-                    rows={2}
-                    placeholder="આ ચલણ માટે કોઈ નોંધ દાખલ કરો..."
-                  />
+                {/* Totals Display */}
+                <div className="p-3 border border-blue-200 rounded-lg bg-blue-50">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex-1 p-2 bg-white border border-blue-200 rounded">
+                      <div className="text-xs text-center">
+                        <div className="font-medium text-blue-800">પોતાની પ્લેટ</div>
+                        <div className="text-lg font-bold text-blue-700">
+                          {Object.values(editingChallan.plates).reduce((sum, qty) => sum + (qty || 0), 0)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-1 p-2 bg-white border border-purple-200 rounded">
+                      <div className="text-xs text-center">
+                        <div className="font-medium text-purple-800">બિજો ડેપો</div>
+                        <div className="text-lg font-bold text-purple-700">
+                          {Object.values(editingChallan.borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex-1 p-2 rounded bg-gradient-to-r from-blue-500 to-indigo-500">
+                      <div className="text-center">
+                        <div className="text-xs font-medium text-blue-100">કુલ પ્લેટ</div>
+                        <div className="text-lg font-bold text-white">
+                          {Object.values(editingChallan.plates).reduce((sum, qty) => sum + (qty || 0), 0) +
+                           Object.values(editingChallan.borrowedStock).reduce((sum, qty) => sum + (qty || 0), 0)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-col gap-1.5 pt-3 border-t-2 border-blue-100 sm:flex-row">
+                <div className="flex flex-col gap-2 pt-4 border-t-2 border-blue-100 sm:flex-row">
                   <button
                     onClick={handleSaveEdit}
                     disabled={editLoading}
-                    className="flex items-center justify-center flex-1 gap-1.5 px-2 py-1.5 text-xs font-medium text-white transition-colors rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-50"
+                    className="flex items-center justify-center flex-1 gap-2 px-4 py-3 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:opacity-50"
                   >
                     {editLoading ? (
-                      <div className="w-3 h-3 border-2 border-white rounded-full border-t-transparent animate-spin" />
+                      <Loader2 className="w-4 h-4 animate-spin" />
                     ) : (
-                      <Save className="w-3 h-3" />
+                      <Save className="w-4 h-4" />
                     )}
                     સેવ કરો
                   </button>
                   <button
                     onClick={handleDeleteChallan}
                     disabled={editLoading}
-                    className="flex items-center justify-center flex-1 gap-1.5 px-2 py-1.5 text-xs font-medium text-white transition-colors rounded-lg bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:opacity-50"
+                    className="flex items-center justify-center flex-1 gap-2 px-4 py-3 text-sm font-medium text-white transition-colors rounded-lg bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 disabled:opacity-50"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <Trash2 className="w-4 h-4" />
                     ડિલીટ કરો
                   </button>
                   <button
                     onClick={() => setEditingChallan(null)}
                     disabled={editLoading}
-                    className="flex-1 px-2 py-1.5 text-xs font-medium text-white transition-colors bg-gray-500 rounded-lg hover:bg-gray-600 disabled:opacity-50"
+                    className="flex-1 px-4 py-3 text-sm font-medium text-white transition-colors bg-gray-500 rounded-lg hover:bg-gray-600 disabled:opacity-50"
                   >
                     રદ કરો
                   </button>
@@ -850,212 +1174,5 @@ export function ChallanManagementPage() {
         )}
       </div>
     </div>
-  );
-}
-
-// Challan Card Component
-interface ChallanCardProps {
-  challan: UdharChallan | JamaChallan;
-  type: 'udhar' | 'jama';
-  isExpanded: boolean;
-  onToggleExpand: () => void;
-  onEdit: () => void;
-  onDownload: () => void;
-  downloading: boolean;
-  user: any;
-}
-
-function ChallanCard({ 
-  challan, 
-  type, 
-  isExpanded, 
-  onToggleExpand, 
-  onEdit, 
-  onDownload, 
-  downloading, 
-  user 
-}: ChallanCardProps) {
-  const challanNumber = type === 'udhar' 
-    ? (challan as UdharChallan).challan_number
-    : (challan as JamaChallan).return_challan_number;
-  
-  const challanDate = type === 'udhar'
-    ? (challan as UdharChallan).challan_date
-    : (challan as JamaChallan).return_date;
-
-  const items = type === 'udhar'
-    ? (challan as UdharChallan).challan_items
-    : (challan as JamaChallan).return_line_items;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200"
-    >
-      {/* Challan Header */}
-      <div 
-        className="p-2 transition-colors cursor-pointer hover:bg-blue-25"
-        onClick={onToggleExpand}
-      >
-        <div className="flex items-start justify-between mb-2">
-          <div className="flex-1">
-            <div className="flex items-center gap-1.5 mb-1">
-              <div className={`flex items-center justify-center w-5 h-5 rounded-full ${
-                type === 'udhar' 
-                  ? 'bg-gradient-to-r from-red-500 to-orange-500' 
-                  : 'bg-gradient-to-r from-green-500 to-emerald-500'
-              }`}>
-                {type === 'udhar' ? (
-                  <FileText className="w-2.5 h-2.5 text-white" />
-                ) : (
-                  <RotateCcw className="w-2.5 h-2.5 text-white" />
-                )}
-              </div>
-              <span className="text-xs font-semibold text-gray-900">
-                {challanNumber}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 mb-0.5 text-xs text-blue-600">
-              <Calendar className="w-2.5 h-2.5" />
-              <span>{format(new Date(challanDate), 'dd/MM/yyyy')}</span>
-            </div>
-            {challan.driver_name && (
-              <div className="flex items-center gap-1.5 text-xs text-blue-600">
-                <User className="w-2.5 h-2.5" />
-                <span>{challan.driver_name}</span>
-              </div>
-            )}
-          </div>
-          <div className="flex flex-col items-end gap-1.5">
-            {type === 'udhar' && (
-              <span className={`px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                (challan as UdharChallan).status === 'completed' 
-                  ? 'bg-green-100 text-green-800 border border-green-200'
-                  : (challan as UdharChallan).status === 'partial'
-                  ? 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                  : 'bg-blue-100 text-blue-800 border border-blue-200'
-              }`}>
-                {(challan as UdharChallan).status === 'completed' ? 'પૂર્ણ' : 
-                 (challan as UdharChallan).status === 'partial' ? 'અર્ધ' : 'સક્રિય'}
-              </span>
-            )}
-            <div className="flex items-center gap-1.5">
-              <span className={`text-xs font-medium px-1.5 py-0.5 rounded-full ${
-                type === 'udhar' 
-                  ? 'text-red-600 bg-red-50' 
-                  : 'text-green-600 bg-green-50'
-              }`}>
-                {challan.total_plates} પ્લેટ્સ
-              </span>
-              <div className="flex items-center justify-center w-4 h-4 bg-blue-100 rounded-full">
-                {isExpanded ? (
-                  <ChevronUp className="w-2.5 h-2.5 text-blue-600" />
-                ) : (
-                  <ChevronDown className="w-2.5 h-2.5 text-blue-600" />
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex gap-1.5">
-          {user?.isAdmin ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onEdit();
-              }}
-              className="flex items-center justify-center flex-1 gap-1 px-1.5 py-1.5 text-xs font-medium text-blue-700 transition-colors bg-blue-100 rounded-lg hover:bg-blue-200"
-            >
-              <Edit className="w-2.5 h-2.5" />
-              એડિટ
-            </button>
-          ) : (
-            <div className="flex items-center justify-center flex-1 gap-1 px-1.5 py-1.5 text-xs font-medium text-gray-500 bg-gray-200 rounded-lg">
-              <Lock className="w-2.5 h-2.5" />
-              લૉક
-            </div>
-          )}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleExpand();
-            }}
-            className="flex items-center justify-center flex-1 gap-1 px-1.5 py-1.5 text-xs font-medium text-blue-700 transition-colors bg-blue-100 rounded-lg hover:bg-blue-200"
-          >
-            <Eye className="w-2.5 h-2.5" />
-            જુઓ
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDownload();
-            }}
-            disabled={downloading}
-            className={`flex-1 py-1.5 px-1.5 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 ${
-              type === 'udhar'
-                ? 'bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600 text-white'
-                : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white'
-            } disabled:opacity-50`}
-          >
-            <Download className="w-2.5 h-2.5" />
-            {downloading ? 'લોડિંગ...' : 'ડાઉનલોડ'}
-          </button>
-        </div>
-      </div>
-
-      {/* Expanded Details */}
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden border-t-2 border-blue-100 bg-gradient-to-r from-blue-50 to-indigo-50"
-          >
-            <div className="p-2 space-y-2">
-              {/* Plate Details */}
-              <div className="p-2 bg-white border border-blue-200 rounded-lg">
-                <h4 className="mb-1.5 text-xs font-medium text-blue-900">પ્લેટ વિગતો</h4>
-                <div className="space-y-1.5">
-                  {type === 'udhar' 
-                    ? (challan as UdharChallan).challan_items.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between py-0.5 border-b border-blue-100 last:border-b-0">
-                          <span className="text-xs font-medium text-gray-900">{item.plate_size}</span>
-                          <div className="text-right">
-                            <span className="text-xs font-bold text-red-600">{item.borrowed_quantity}</span>
-                            {item.borrowed_stock > 0 && (
-                              <span className="ml-1 text-xs font-bold text-purple-600">+{item.borrowed_stock}*</span>
-                            )}
-                            {item.partner_stock_notes && (
-                              <div className="mt-0.5 text-xs text-blue-500">{item.partner_stock_notes}</div>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                    : (challan as JamaChallan).return_line_items.map((item, index) => (
-                        <div key={index} className="flex items-center justify-between py-0.5 border-b border-blue-100 last:border-b-0">
-                          <span className="text-xs font-medium text-gray-900">{item.plate_size}</span>
-                          <div className="text-right">
-                            <span className="text-xs font-bold text-green-600">{item.returned_quantity}</span>
-                            {item.returned_borrowed_stock > 0 && (
-                              <span className="ml-1 text-xs font-bold text-purple-600">+{item.returned_borrowed_stock}*</span>
-                            )}
-                            {item.damage_notes && (
-                              <div className="mt-0.5 text-xs text-blue-500">{item.damage_notes}</div>
-                            )}
-                          </div>
-                        </div>
-                      ))
-                  }
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
   );
 }
