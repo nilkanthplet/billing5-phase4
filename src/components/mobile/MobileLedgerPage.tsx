@@ -1050,7 +1050,7 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
             <tbody>
               <tr className="border-b-2 border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
                 <td className="sticky left-0 px-1 py-1 font-bold text-blue-900 border-r border-blue-200 bg-gradient-to-r from-blue-100 to-indigo-100">
-                  <div className="text-xs">વર્તમાન બેલેન્સ</div>
+                  <div className="text-xs">ચાલુ નંગ</div>
                 </td>
                 <td className="px-1 py-1 text-center border-l border-blue-200">
                   <div className="text-xs font-semibold text-blue-700">-</div>
@@ -1192,9 +1192,9 @@ function AllSizesActivityTable({ ledger, onDownloadChallan, downloading }: AllSi
               <div className="w-2.5 h-2.5 bg-green-400 rounded-full shadow-sm"></div>
               <span className="font-medium text-blue-700">જમા</span>
             </div>
-            <div className="flex items-center gap-1">
-              <FileImage className="w-2.5 h-2.5 text-blue-600" />
-              <span className="font-medium text-blue-700">ખાતાવહી ડાઉનલોડ</span>
+              <div className="flex items-center gap-1">
+              <div className="w-2.5 h-2.5 bg-blue-400 rounded-full shadow-sm"></div>
+              <span className="font-medium text-blue-700">ચાલુ નંગ</span>
             </div>
           </div>
         </div>
