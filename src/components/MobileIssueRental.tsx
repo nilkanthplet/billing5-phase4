@@ -792,7 +792,9 @@ export function MobileIssueRental() {
                       {showBorrowedColumn && (
                         <th className="px-1 py-1 font-medium text-center">બિજો ડેપો</th>
                       )}
-                      <th className="px-1 py-1 font-medium text-center">નોંધ</th>
+                      {showBorrowedColumn && (
+                        <th className="px-1 py-1 font-medium text-center">નોંધ</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -830,27 +832,29 @@ export function MobileIssueRental() {
                             )}
                           </td>
                           {showBorrowedColumn && (
-                            <td className="px-1 py-1 text-center">
-                              <input
-                                type="number"
-                                min={0}
-                                value={borrowedStock[size] || ""}
-                                onChange={e => handleBorrowedStockChange(size, e.target.value)}
-                                onFocus={e => e.target.select()}
-                                className="w-10 px-0.5 py-0.5 border border-blue-300 rounded text-center bg-blue-50 focus:ring-1 focus:ring-blue-200 focus:border-blue-400"
-                                placeholder="0"
-                              />
-                            </td>
+                            <>
+                              <td className="px-1 py-1 text-center">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={borrowedStock[size] || ""}
+                                  onChange={e => handleBorrowedStockChange(size, e.target.value)}
+                                  onFocus={e => e.target.select()}
+                                  className="w-10 px-0.5 py-0.5 border border-blue-300 rounded text-center bg-blue-50 focus:ring-1 focus:ring-blue-200 focus:border-blue-400"
+                                  placeholder="0"
+                                />
+                              </td>
+                              <td className="px-1 py-1 text-center">
+                                <input
+                                  type="text"
+                                  className="w-16 px-0.5 py-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                                  value={notes[size] || ""}
+                                  onChange={e => handleNoteChange(size, e.target.value)}
+                                  placeholder="નોંધ"
+                                />
+                              </td>
+                            </>
                           )}
-                          <td className="px-1 py-1 text-center">
-                            <input
-                              type="text"
-                              className="w-16 px-0.5 py-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
-                              value={notes[size] || ""}
-                              onChange={e => handleNoteChange(size, e.target.value)}
-                              placeholder="નોંધ"
-                            />
-                          </td>
                         </tr>
                       );
                     })}

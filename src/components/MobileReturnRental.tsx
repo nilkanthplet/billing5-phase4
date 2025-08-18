@@ -1000,12 +1000,12 @@ export function MobileReturnRental() {
                       {showBorrowedStock ? (
                         <>
                           <Eye className="w-3 h-3" />
-                          ઉધાર સ્ટોક છુપાવો
+                          બિજો ડેપો છુપાવો
                         </>
                       ) : (
                         <>
                           <EyeOff className="w-3 h-3" />
-                          ઉધાર સ્ટોક બતાવો
+                          બિજો ડેપો બતાવો
                         </>
                       )}
                     </button>
@@ -1046,9 +1046,11 @@ export function MobileReturnRental() {
                             બિજો ડેપો                          </span>
                         </th>
                       )}
+                      {showBorrowedStock && (
+                        <th className="px-1 py-1 font-medium text-center">નોંધ</th>
+                      )}
                       {/* <th className="px-1 py-1 font-medium text-center">ખરાબ</th> */}
                       {/* <th className="px-1 py-1 font-medium text-center">ગુમ</th> */}
-                      <th className="px-1 py-1 font-medium text-center">નોંધ</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1120,17 +1122,17 @@ export function MobileReturnRental() {
                                   placeholder="0"
                                 />
                               </td>
+                              <td className="px-1 py-1 text-center">
+                                <input
+                                  type="text"
+                                  className="w-16 px-0.5 py-0.5 border border-gray-300 rounded focus:ring-1 focus:ring-red-200 focus:border-red-400"
+                                  value={notes[size] || ""}
+                                  onChange={e => handleNoteChange(size, e.target.value)}
+                                  placeholder="નોંધ"
+                                />
+                              </td>
                             </>
                           )}
-                          <td className="px-1 py-1 text-center">
-                            <input
-                              type="text"
-                              className="w-16 px-0.5 py-0.5 border border-gray-300 rounded"
-                              value={notes[size] || ""}
-                              onChange={e => handleNoteChange(size, e.target.value)}
-                              placeholder="નોંધ"
-                            />
-                          </td>
                         </tr>
                       );
                     })}
