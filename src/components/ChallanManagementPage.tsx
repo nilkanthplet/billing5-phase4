@@ -130,6 +130,7 @@ export function ChallanManagementPage() {
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [clientLedger, setClientLedger] = useState<ClientLedger | null>(null);
   const [loading, setLoading] = useState(true);
+  const [ledgerLoading, setLedgerLoading] = useState(false); // Separate loading state for ledger
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
   const [downloading, setDownloading] = useState<number | null>(null);
@@ -140,11 +141,25 @@ export function ChallanManagementPage() {
   const [stockValidation, setStockValidation] = useState<StockValidation[]>([]);
   const [previousDrivers, setPreviousDrivers] = useState<string[]>([]);
 
+  // Fetch initial data only once
   useEffect(() => {
-    fetchClients();
-    fetchStockData();
-    fetchPreviousDriverNames();
-  }, []);
+    const initializeData = async () => {
+      setLoading(true);
+      try {
+        await Promise.all([
+          fetchClients(),
+          fetchStockData(),
+          fetchPreviousDriverNames()
+        ]);
+      } catch (error) {
+        console.error('Error initializing data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeData();
+  }, []); // Empty dependency array - runs only once
 
   const fetchStockData = async () => {
     try {
@@ -199,14 +214,12 @@ export function ChallanManagementPage() {
       setClients(data || []);
     } catch (error) {
       console.error('Error fetching clients:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
   const fetchClientLedger = async (client: Client) => {
     try {
-      setLoading(true);
+      setLedgerLoading(true); // Use separate loading state
       
       // Fetch all challans and returns for this client
       const [challansResponse, returnsResponse] = await Promise.all([
@@ -308,16 +321,16 @@ export function ChallanManagementPage() {
     } catch (error) {
       console.error('Error fetching client ledger:', error);
     } finally {
-      setLoading(false);
+      setLedgerLoading(false); // Use separate loading state
     }
   };
 
-  const handleClientSelect = (client: Client) => {
+  const handleClientSelect = useCallback((client: Client) => {
     setSelectedClient(client);
     setExpandedClient(null);
     setEditingChallan(null);
     fetchClientLedger(client);
-  };
+  }, []); // Remove dependencies to prevent unnecessary re-renders
 
   const handleEditChallan = async (transaction: any) => {
     try {
@@ -405,11 +418,13 @@ export function ChallanManagementPage() {
       }
     });
     setStockValidation(insufficientStock);
-  }, [editingChallan, stockData]);
+  }, [editingChallan?.plates, stockData, editingChallan?.type]); // Add proper dependencies
 
   useEffect(() => {
-    validateStockAvailability();
-  }, [validateStockAvailability]);
+    if (editingChallan) {
+      validateStockAvailability();
+    }
+  }, [validateStockAvailability, editingChallan]);
 
   const handleSaveEdit = async () => {
     if (!editingChallan) return;
@@ -955,7 +970,7 @@ export function ChallanManagementPage() {
             </div>
 
             {/* Client Ledger View */}
-            {loading ? (
+            {ledgerLoading ? (
               <div className="space-y-3">
                 {[...Array(3)].map((_, i) => (
                   <div key={i} className="p-3 bg-white border border-blue-100 shadow-sm rounded-xl animate-pulse">
