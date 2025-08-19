@@ -416,7 +416,25 @@ export function ChallanManagementPage() {
 
     setEditLoading(true);
     try {
+      // Get original data before updating to calculate stock changes
+      let originalItems: Array<{ plate_size: string; quantity: number; borrowed_stock?: number }> = [];
+      
       if (editingChallan.type === 'udhar') {
+        // Get original challan items
+        const { data: originalChallan, error: fetchError } = await supabase
+          .from('challans')
+          .select('challan_items(*)')
+          .eq('id', editingChallan.id)
+          .single();
+
+        if (fetchError) throw fetchError;
+        
+        originalItems = originalChallan.challan_items.map((item: ChallanItem) => ({
+          plate_size: item.plate_size,
+          quantity: item.borrowed_quantity,
+          borrowed_stock: item.borrowed_stock || 0
+        }));
+
         // Update challan
         const { error: challanError } = await supabase
           .from('challans')
@@ -456,7 +474,74 @@ export function ChallanManagementPage() {
 
           if (insertError) throw insertError;
         }
+        
+        // Update stock quantities based on changes
+        for (const originalItem of originalItems) {
+          if (originalItem.quantity > 0) {
+            const stockItem = stockData.find(s => s.plate_size === originalItem.plate_size);
+            if (stockItem) {
+              // Revert original quantities
+              const revertedAvailable = stockItem.available_quantity + originalItem.quantity;
+              const revertedOnRent = Math.max(0, stockItem.on_rent_quantity - originalItem.quantity);
+              
+              // Apply new quantities
+              const newQuantity = editingChallan.plates[originalItem.plate_size] || 0;
+              const finalAvailable = Math.max(0, revertedAvailable - newQuantity);
+              const finalOnRent = revertedOnRent + newQuantity;
+              
+              const { error: stockError } = await supabase
+                .from('stock')
+                .update({
+                  available_quantity: finalAvailable,
+                  on_rent_quantity: finalOnRent,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', stockItem.id);
+
+              if (stockError) throw stockError;
+            }
+          }
+        }
+        
+        // Handle new items that weren't in original
+        for (const [plate_size, quantity] of Object.entries(editingChallan.plates)) {
+          if (quantity > 0) {
+            const wasOriginal = originalItems.some(item => item.plate_size === plate_size);
+            if (!wasOriginal) {
+              const stockItem = stockData.find(s => s.plate_size === plate_size);
+              if (stockItem) {
+                const newAvailableQuantity = Math.max(0, stockItem.available_quantity - quantity);
+                const newOnRentQuantity = stockItem.on_rent_quantity + quantity;
+                
+                const { error: stockError } = await supabase
+                  .from('stock')
+                  .update({
+                    available_quantity: newAvailableQuantity,
+                    on_rent_quantity: newOnRentQuantity,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', stockItem.id);
+
+                if (stockError) throw stockError;
+              }
+            }
+          }
+        }
       } else {
+        // Get original return items
+        const { data: originalReturn, error: fetchError } = await supabase
+          .from('returns')
+          .select('return_line_items(*)')
+          .eq('id', editingChallan.id)
+          .single();
+
+        if (fetchError) throw fetchError;
+        
+        originalItems = originalReturn.return_line_items.map((item: ReturnLineItem) => ({
+          plate_size: item.plate_size,
+          quantity: item.returned_quantity
+        }));
+
         // Update return
         const { error: returnError } = await supabase
           .from('returns')
@@ -496,8 +581,64 @@ export function ChallanManagementPage() {
 
           if (insertError) throw insertError;
         }
+        
+        // Update stock quantities based on changes for returns
+        for (const originalItem of originalItems) {
+          if (originalItem.quantity > 0) {
+            const stockItem = stockData.find(s => s.plate_size === originalItem.plate_size);
+            if (stockItem) {
+              // Revert original return (subtract from available, add back to on_rent)
+              const revertedAvailable = Math.max(0, stockItem.available_quantity - originalItem.quantity);
+              const revertedOnRent = stockItem.on_rent_quantity + originalItem.quantity;
+              
+              // Apply new return quantities
+              const newQuantity = editingChallan.plates[originalItem.plate_size] || 0;
+              const finalAvailable = revertedAvailable + newQuantity;
+              const finalOnRent = Math.max(0, revertedOnRent - newQuantity);
+              
+              const { error: stockError } = await supabase
+                .from('stock')
+                .update({
+                  available_quantity: finalAvailable,
+                  on_rent_quantity: finalOnRent,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', stockItem.id);
+
+              if (stockError) throw stockError;
+            }
+          }
+        }
+        
+        // Handle new return items that weren't in original
+        for (const [plate_size, quantity] of Object.entries(editingChallan.plates)) {
+          if (quantity > 0) {
+            const wasOriginal = originalItems.some(item => item.plate_size === plate_size);
+            if (!wasOriginal) {
+              const stockItem = stockData.find(s => s.plate_size === plate_size);
+              if (stockItem) {
+                const newAvailableQuantity = stockItem.available_quantity + quantity;
+                const newOnRentQuantity = Math.max(0, stockItem.on_rent_quantity - quantity);
+                
+                const { error: stockError } = await supabase
+                  .from('stock')
+                  .update({
+                    available_quantity: newAvailableQuantity,
+                    on_rent_quantity: newOnRentQuantity,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', stockItem.id);
+
+                if (stockError) throw stockError;
+              }
+            }
+          }
+        }
       }
 
+      // Refresh stock data after update
+      await fetchStockData();
+      
       setEditingChallan(null);
       if (selectedClient) {
         await fetchClientLedger(selectedClient);
@@ -519,22 +660,102 @@ export function ChallanManagementPage() {
 
     setEditLoading(true);
     try {
+      // First, get the challan/return data to update stock
+      let itemsToRevert: Array<{ plate_size: string; quantity: number; borrowed_stock?: number }> = [];
+      
       if (editingChallan.type === 'udhar') {
+        // Get challan items before deletion to revert stock
+        const { data: challanData, error: fetchError } = await supabase
+          .from('challans')
+          .select('challan_items(*)')
+          .eq('id', editingChallan.id)
+          .single();
+
+        if (fetchError) throw fetchError;
+        
+        itemsToRevert = challanData.challan_items.map((item: ChallanItem) => ({
+          plate_size: item.plate_size,
+          quantity: item.borrowed_quantity,
+          borrowed_stock: item.borrowed_stock || 0
+        }));
+
         const { error } = await supabase
           .from('challans')
           .delete()
           .eq('id', editingChallan.id);
 
         if (error) throw error;
+        
+        // Revert stock quantities for udhar challan deletion
+        for (const item of itemsToRevert) {
+          if (item.quantity > 0) {
+            const stockItem = stockData.find(s => s.plate_size === item.plate_size);
+            if (stockItem) {
+              const newAvailableQuantity = stockItem.available_quantity + item.quantity;
+              const newOnRentQuantity = Math.max(0, stockItem.on_rent_quantity - item.quantity);
+              
+              const { error: stockError } = await supabase
+                .from('stock')
+                .update({
+                  available_quantity: newAvailableQuantity,
+                  on_rent_quantity: newOnRentQuantity,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', stockItem.id);
+
+              if (stockError) throw stockError;
+            }
+          }
+        }
       } else {
+        // Get return items before deletion to revert stock
+        const { data: returnData, error: fetchError } = await supabase
+          .from('returns')
+          .select('return_line_items(*)')
+          .eq('id', editingChallan.id)
+          .single();
+
+        if (fetchError) throw fetchError;
+        
+        itemsToRevert = returnData.return_line_items.map((item: ReturnLineItem) => ({
+          plate_size: item.plate_size,
+          quantity: item.returned_quantity
+        }));
+
         const { error } = await supabase
           .from('returns')
           .delete()
           .eq('id', editingChallan.id);
 
         if (error) throw error;
+        
+        // Revert stock quantities for jama challan deletion
+        for (const item of itemsToRevert) {
+          if (item.quantity > 0) {
+            const stockItem = stockData.find(s => s.plate_size === item.plate_size);
+            if (stockItem) {
+              // For return deletion: subtract from available, add back to on_rent
+              const newAvailableQuantity = Math.max(0, stockItem.available_quantity - item.quantity);
+              const newOnRentQuantity = stockItem.on_rent_quantity + item.quantity;
+              
+              const { error: stockError } = await supabase
+                .from('stock')
+                .update({
+                  available_quantity: newAvailableQuantity,
+                  on_rent_quantity: newOnRentQuantity,
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', stockItem.id);
+
+              if (stockError) throw stockError;
+            }
+          }
+        }
       }
 
+      // Refresh stock data after deletion
+      await fetchStockData();
+      
       setEditingChallan(null);
       if (selectedClient) {
         await fetchClientLedger(selectedClient);
@@ -671,7 +892,7 @@ export function ChallanManagementPage() {
                     key={client.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg rounded-xl hover:shadow-xl hover:border-blue-200 cursor-pointer"
+                    className="overflow-hidden transition-all duration-200 bg-white border-2 border-blue-100 shadow-lg cursor-pointer rounded-xl hover:shadow-xl hover:border-blue-200"
                     onClick={() => handleClientSelect(client)}
                   >
                     <div className="p-4">
@@ -724,7 +945,7 @@ export function ChallanManagementPage() {
                   <h2 className="text-sm font-bold text-gray-900">{selectedClient.name}</h2>
                   <p className="text-xs text-blue-600">ID: {selectedClient.id}</p>
                   {clientLedger && (
-                    <p className="text-xs text-red-600 font-medium">
+                    <p className="text-xs font-medium text-red-600">
                       કુલ બાકી: {clientLedger.total_outstanding} પ્લેટ્સ
                     </p>
                   )}
@@ -762,12 +983,12 @@ export function ChallanManagementPage() {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="text-white bg-gradient-to-r from-blue-500 to-indigo-500">
-                        <th className="px-2 py-2 text-left font-bold">ચલણ નં.</th>
-                        <th className="px-2 py-2 text-center font-bold">તારીખ</th>
-                        <th className="px-2 py-2 text-center font-bold">કુલ</th>
-                        <th className="px-2 py-2 text-center font-bold">પ્રકાર</th>
-                        <th className="px-2 py-2 text-center font-bold">ડ્રાઈવર</th>
-                        <th className="px-2 py-2 text-center font-bold">ક્રિયાઓ</th>
+                        <th className="px-2 py-2 font-bold text-left">ચલણ નં.</th>
+                        <th className="px-2 py-2 font-bold text-center">તારીખ</th>
+                        <th className="px-2 py-2 font-bold text-center">કુલ</th>
+                        <th className="px-2 py-2 font-bold text-center">પ્રકાર</th>
+                        <th className="px-2 py-2 font-bold text-center">ડ્રાઈવર</th>
+                        <th className="px-2 py-2 font-bold text-center">ક્રિયાઓ</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -819,7 +1040,7 @@ export function ChallanManagementPage() {
                               {user?.isAdmin ? (
                                 <button
                                   onClick={() => handleEditChallan(transaction)}
-                                  className="p-1 text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                                  className="p-1 text-blue-600 transition-colors rounded hover:bg-blue-50"
                                   title="એડિટ"
                                 >
                                   <Edit className="w-3 h-3" />
@@ -837,7 +1058,7 @@ export function ChallanManagementPage() {
                                     ? null 
                                     : `${transaction.type}-${transaction.id}`
                                 )}
-                                className="p-1 text-blue-600 rounded hover:bg-blue-50 transition-colors"
+                                className="p-1 text-blue-600 transition-colors rounded hover:bg-blue-50"
                                 title="જુઓ"
                               >
                                 <Eye className="w-3 h-3" />
@@ -847,7 +1068,7 @@ export function ChallanManagementPage() {
                               <button
                                 onClick={() => handleDownload(transaction)}
                                 disabled={downloading === transaction.id}
-                                className="p-1 text-green-600 rounded hover:bg-green-50 transition-colors disabled:opacity-50"
+                                className="p-1 text-green-600 transition-colors rounded hover:bg-green-50 disabled:opacity-50"
                                 title="ડાઉનલોડ"
                               >
                                 {downloading === transaction.id ? (
@@ -999,7 +1220,7 @@ export function ChallanManagementPage() {
 
                 {/* Stock Warning */}
                 {stockValidation.length > 0 && editingChallan.type === 'udhar' && (
-                  <div className="flex items-center gap-2 p-3 text-amber-600 border rounded-lg bg-amber-50 border-amber-200">
+                  <div className="flex items-center gap-2 p-3 border rounded-lg text-amber-600 bg-amber-50 border-amber-200">
                     <AlertTriangle className="w-4 h-4" />
                     <span className="text-sm font-medium">કેટલીક વસ્તુઓમાં અપૂરતો સ્ટોક છે.</span>
                   </div>
@@ -1014,13 +1235,13 @@ export function ChallanManagementPage() {
                     <table className="w-full text-xs border border-gray-200 rounded-lg">
                       <thead>
                         <tr className="bg-gray-50">
-                          <th className="px-3 py-2 text-left font-medium text-gray-700">સાઇઝ</th>
+                          <th className="px-3 py-2 font-medium text-left text-gray-700">સાઇઝ</th>
                           {editingChallan.type === 'udhar' && (
-                            <th className="px-3 py-2 text-center font-medium text-gray-700">સ્ટોક</th>
+                            <th className="px-3 py-2 font-medium text-center text-gray-700">સ્ટોક</th>
                           )}
-                          <th className="px-3 py-2 text-center font-medium text-gray-700">માત્રા</th>
-                          <th className="px-3 py-2 text-center font-medium text-gray-700">બિજો ડેપો</th>
-                          <th className="px-3 py-2 text-center font-medium text-gray-700">નોંધ</th>
+                          <th className="px-3 py-2 font-medium text-center text-gray-700">માત્રા</th>
+                          <th className="px-3 py-2 font-medium text-center text-gray-700">બિજો ડેપો</th>
+                          <th className="px-3 py-2 font-medium text-center text-gray-700">નોંધ</th>
                         </tr>
                       </thead>
                       <tbody>

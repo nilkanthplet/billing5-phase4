@@ -173,10 +173,10 @@ export const generateClientLedgerJPG = async (data: ClientLedgerData): Promise<s
       </table>
 
       <div style="margin-top:40px;font-size:13px;color:#666;text-align:center;">
-        સુરેશભાઈ પોલારા: +91 93287 28228
+        સુરેશભાઈ પોલરા: +91 93287 28228
       </div>
       <div style="margin-top:3px;font-size:13px;color:#666;text-align:center;">
-        હરેશભાઈ પોલારા: +91 90992 64436
+        હરેશભાઈ પોલરા: +91 90992 64436
       </div>
       <div style="margin-top:20px;font-size:11px;color:#999;text-align:center;">
         Created: ${new Date(data.generated_date).toLocaleString('gu-IN')}
