@@ -23,11 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment files
-.env
-.env.*
-!.env.example
-
 # Mobile build files
 android/
 ios/
