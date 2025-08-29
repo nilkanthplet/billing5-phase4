@@ -56,17 +56,10 @@ export function StockPage() {
     if (!editingItem || !editValues) return
 
     try {
-      const currentItem = stockItems.find(item => item.id === editingItem);
-      if (!currentItem) return;
-
-      // Calculate new available quantity: total - on_rent
-      const newAvailableQuantity = (editValues.total_quantity || currentItem.total_quantity) - currentItem.on_rent_quantity;
-
       const { error } = await supabase
         .from('stock')
         .update({
           total_quantity: editValues.total_quantity,
-          available_quantity: Math.max(0, newAvailableQuantity), // Ensure non-negative
           updated_at: new Date().toISOString()
         })
         .eq('id', editingItem)
@@ -113,9 +106,10 @@ export function StockPage() {
 
   const getStockStatus = (item: Stock) => {
     const total = item.total_quantity
+    const availableQuantity = Math.max(0, total - item.on_rent_quantity)
     if (total === 0) return { status: 'empty', color: 'text-gray-500', bg: 'bg-gray-50' }
-    if (item.available_quantity < 10) return { status: 'low', color: 'text-red-600', bg: 'bg-red-50' }
-    if (item.available_quantity < 50) return { status: 'medium', color: 'text-yellow-600', bg: 'bg-yellow-50' }
+    if (availableQuantity < 10) return { status: 'low', color: 'text-red-600', bg: 'bg-red-50' }
+    if (availableQuantity < 50) return { status: 'medium', color: 'text-yellow-600', bg: 'bg-yellow-50' }
     return { status: 'good', color: 'text-green-600', bg: 'bg-green-50' }
   }
 
@@ -198,6 +192,7 @@ export function StockPage() {
         {stockItems.map((item) => {
           const stockStatus = getStockStatus(item)
           const isEditing = editingItem === item.id
+          const availableQuantity = Math.max(0, item.total_quantity - item.on_rent_quantity)
           
           return (
             <div key={item.id} className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 ${stockStatus.bg}`}>
@@ -244,7 +239,7 @@ export function StockPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Available (Auto-calculated)
+                      Available (Calculated)
                     </label>
                     {isEditing ? (
                       <div className="text-center py-2 text-gray-500 bg-gray-100 rounded-lg">
@@ -253,8 +248,8 @@ export function StockPage() {
                       </div>
                     ) : (
                       <p className={`text-2xl font-bold ${stockStatus.color}`}>
-                        {item.available_quantity}
-                        <div className="text-xs text-gray-400">Auto-calculated</div>
+                        {availableQuantity}
+                        <div className="text-xs text-gray-400">Total - On Rent</div>
                       </p>
                     )}
                   </div>
