@@ -105,13 +105,14 @@ export function MobileStockPage() {
       const stockItem = stockItems.find(item => item.plate_size === plateSize);
       if (!stockItem) return;
 
+      // Removed Math.max(0, ...) to allow negative values
       const newAvailableQuantity = (values.total_quantity || stockItem.total_quantity) - stockItem.on_rent_quantity;
 
       const { error } = await supabase
         .from('stock')
         .update({
           total_quantity: values.total_quantity,
-          available_quantity: Math.max(0, newAvailableQuantity),
+          available_quantity: newAvailableQuantity, // Allow negative values
           updated_at: new Date().toISOString()
         })
         .eq('id', stockItem.id);
@@ -140,6 +141,12 @@ export function MobileStockPage() {
     size.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Helper function to calculate available quantity
+  const getAvailableQuantity = (stock: Stock | undefined) => {
+    if (!stock) return 0;
+    return stock.total_quantity - stock.on_rent_quantity; // Allow negative values
+  };
+
   const calculateTotals = () => {
     const filteredStockItems = filteredPlateSizes
       .map(size => stockMap[size])
@@ -150,7 +157,7 @@ export function MobileStockPage() {
 
     return {
       totalStock: filteredStockItems.reduce((sum, item) => sum + (item?.total_quantity || 0), 0),
-      totalAvailable: filteredStockItems.reduce((sum, item) => sum + (item?.available_quantity || 0), 0),
+      totalAvailable: filteredStockItems.reduce((sum, item) => sum + getAvailableQuantity(item), 0), // Use helper function
       totalOnRent: filteredStockItems.reduce((sum, item) => sum + (item?.on_rent_quantity || 0), 0),
       totalBorrowedStock
     };
@@ -221,7 +228,9 @@ export function MobileStockPage() {
                 const stock = stockMap[plateSize];
                 const borrowed = borrowedStockMap[plateSize] || 0;
                 const totalOut = (stock?.on_rent_quantity || 0) + borrowed;
-                const isLowStock = (stock?.available_quantity || 0) <= 5;
+                const availableQuantity = getAvailableQuantity(stock); // Use helper function
+                const isLowStock = availableQuantity <= 5 && availableQuantity >= 0; // Only show low stock warning for positive values
+                const isNegative = availableQuantity < 0;
                 
                 return (
                   <tr key={plateSize} className="border-b border-blue-100">
@@ -233,9 +242,13 @@ export function MobileStockPage() {
                     </td>
                     <td className="p-2 text-center">
                       <span className={`px-2 py-0.5 rounded-full ${
-                        isLowStock ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                        isNegative 
+                          ? 'bg-red-100 text-red-700' 
+                          : isLowStock 
+                            ? 'bg-yellow-100 text-yellow-700' 
+                            : 'bg-green-100 text-green-700'
                       }`}>
-                        {stock?.available_quantity || 0}
+                        {availableQuantity}
                       </span>
                     </td>
                     <td className="p-2 text-center">
@@ -272,7 +285,11 @@ export function MobileStockPage() {
                 <td className="p-2 text-green-800">કુલ</td>
                 <td className="p-2 text-center text-purple-700">{totals.totalStock}</td>
                 <td className="p-2 text-center">
-                  <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full">
+                  <span className={`px-2 py-0.5 rounded-full ${
+                    totals.totalAvailable < 0 
+                      ? 'bg-red-100 text-red-700' 
+                      : 'bg-green-100 text-green-700'
+                  }`}>
                     {totals.totalAvailable}
                   </span>
                 </td>
