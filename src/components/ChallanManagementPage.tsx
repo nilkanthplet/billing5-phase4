@@ -505,7 +505,7 @@ export function ChallanManagementPage() {
         } else {
           const { data: stocks, error: stockErr } = await supabase
             .from('stock')
-            .select('id, plate_size, available_quantity')
+            .select('id, plate_size, on_rent_quantity')
             .in('plate_size', Object.keys(deltas));
           if (stockErr) throw stockErr;
 
@@ -515,28 +515,29 @@ export function ChallanManagementPage() {
               const delta = deltas[s.plate_size] || 0;
               if (delta === 0) continue;
 
-              const beforeAvailable = s.available_quantity || 0;
-              // If delta > 0: old > new, so add back to stock (delta amount was reduced, now return it)
-              // If delta < 0: old < new, so reduce from stock (more is being issued)
-              const newAvailable = delta > 0
-                ? beforeAvailable + delta // add back to stock
-                : Math.max(0, beforeAvailable + delta); // reduce from stock (delta is negative)
+              // For on_rent_quantity we need change = new - old (positive => more on-rent)
+              const oldQty = oldTotals[s.plate_size] || 0;
+              const newQty = newTotals[s.plate_size] || 0;
+              const change = newQty - oldQty;
+              if (change === 0) continue;
 
-              // debug log to trace incorrect stock adjustments
-              console.debug('[Challan Edit][UDHAR] plate=%s id=%s delta=%d beforeAvailable=%d newAvailable=%d oldTotals=%o newTotals=%o', s.plate_size, s.id, delta, beforeAvailable, newAvailable, oldTotals, newTotals);
+              const beforeOnRent = (s as any).on_rent_quantity || 0;
+              const newOnRent = Math.max(0, beforeOnRent + change);
+
+              console.debug('[Challan Edit][UDHAR][on_rent] plate=%s id=%s oldQty=%d newQty=%d change=%d beforeOnRent=%d newOnRent=%d', s.plate_size, s.id, oldQty, newQty, change, beforeOnRent, newOnRent);
 
               const { error: updErr } = await supabase
                 .from('stock')
-                .update({ available_quantity: newAvailable })
+                .update({ on_rent_quantity: newOnRent })
                 .eq('id', s.id);
               if (updErr) throw updErr;
-              applied.push({ id: s.id, previous: s.available_quantity || 0 });
+              applied.push({ id: s.id, previous: (s as any).on_rent_quantity || 0 });
             }
           } catch (uErr) {
             // Revert on error
             for (const a of applied) {
               try {
-                await supabase.from('stock').update({ available_quantity: a.previous }).eq('id', a.id);
+                await supabase.from('stock').update({ on_rent_quantity: a.previous }).eq('id', a.id);
               } catch (e) {
                 console.error('revert failed', e);
               }
@@ -613,7 +614,7 @@ export function ChallanManagementPage() {
         } else {
           const { data: stocks, error: stockErr } = await supabase
             .from('stock')
-            .select('id, plate_size, available_quantity')
+            .select('id, plate_size, on_rent_quantity')
             .in('plate_size', Object.keys(deltas));
           if (stockErr) throw stockErr;
 
@@ -622,19 +623,27 @@ export function ChallanManagementPage() {
             for (const s of (stocks || [])) {
               const delta = deltas[s.plate_size] || 0;
               if (delta === 0) continue;
-              const beforeAvailable = s.available_quantity || 0;
-              const newAvailable = Math.max(0, beforeAvailable + delta);
-              console.debug('[Challan Edit][JAMA] plate=%s id=%s delta=%d beforeAvailable=%d newAvailable=%d', s.plate_size, s.id, delta, beforeAvailable, newAvailable);
+
+              // For returns, change = new - old; positive => more returned => reduce on_rent
+              const oldQty = oldTotals[s.plate_size] || 0;
+              const newQty = newTotals[s.plate_size] || 0;
+              const change = newQty - oldQty;
+              if (change === 0) continue;
+
+              const beforeOnRent = (s as any).on_rent_quantity || 0;
+              const newOnRent = Math.max(0, beforeOnRent - change);
+              console.debug('[Challan Edit][JAMA][on_rent] plate=%s id=%s oldQty=%d newQty=%d change=%d beforeOnRent=%d newOnRent=%d', s.plate_size, s.id, oldQty, newQty, change, beforeOnRent, newOnRent);
+
               const { error: updErr } = await supabase
                 .from('stock')
-                .update({ available_quantity: newAvailable })
+                .update({ on_rent_quantity: newOnRent })
                 .eq('id', s.id);
               if (updErr) throw updErr;
-              applied.push({ id: s.id, previous: s.available_quantity || 0 });
+              applied.push({ id: s.id, previous: (s as any).on_rent_quantity || 0 });
             }
           } catch (uErr) {
             for (const a of applied) {
-              try { await supabase.from('stock').update({ available_quantity: a.previous }).eq('id', a.id); } catch (e) { console.error('revert failed', e); }
+              try { await supabase.from('stock').update({ on_rent_quantity: a.previous }).eq('id', a.id); } catch (e) { console.error('revert failed', e); }
             }
             throw uErr;
           }
@@ -717,7 +726,7 @@ export function ChallanManagementPage() {
         } else {
           const { data: stocks, error: stockErr } = await supabase
             .from('stock')
-            .select('id, plate_size, available_quantity')
+            .select('id, plate_size, on_rent_quantity')
             .in('plate_size', Object.keys(deltas));
           if (stockErr) throw stockErr;
 
@@ -726,19 +735,19 @@ export function ChallanManagementPage() {
             for (const s of (stocks || [])) {
               const delta = deltas[s.plate_size] || 0;
               if (delta === 0) continue;
-                const beforeAvailable = s.available_quantity || 0;
-                const newAvailable = beforeAvailable + delta;
-                console.debug('[Challan Delete][UDHAR] plate=%s id=%s delta=%d beforeAvailable=%d newAvailable=%d', s.plate_size, s.id, delta, beforeAvailable, newAvailable);
-                const { error: updErr } = await supabase
-                  .from('stock')
-                  .update({ available_quantity: newAvailable })
-                  .eq('id', s.id);
+              const beforeOnRent = (s as any).on_rent_quantity || 0;
+              const newOnRent = Math.max(0, beforeOnRent - delta);
+              console.debug('[Challan Delete][UDHAR][on_rent] plate=%s id=%s delta=%d beforeOnRent=%d newOnRent=%d', s.plate_size, s.id, delta, beforeOnRent, newOnRent);
+              const { error: updErr } = await supabase
+                .from('stock')
+                .update({ on_rent_quantity: newOnRent })
+                .eq('id', s.id);
               if (updErr) throw updErr;
-              applied.push({ id: s.id, previous: s.available_quantity || 0 });
+              applied.push({ id: s.id, previous: (s as any).on_rent_quantity || 0 });
             }
           } catch (uErr) {
             for (const a of applied) {
-              try { await supabase.from('stock').update({ available_quantity: a.previous }).eq('id', a.id); } catch (e) { console.error('revert failed', e); }
+              try { await supabase.from('stock').update({ on_rent_quantity: a.previous }).eq('id', a.id); } catch (e) { console.error('revert failed', e); }
             }
             throw uErr;
           }
@@ -777,7 +786,7 @@ export function ChallanManagementPage() {
         } else {
           const { data: stocks, error: stockErr } = await supabase
             .from('stock')
-            .select('id, plate_size, available_quantity')
+            .select('id, plate_size, on_rent_quantity')
             .in('plate_size', Object.keys(deltas));
           if (stockErr) throw stockErr;
 
@@ -786,19 +795,19 @@ export function ChallanManagementPage() {
             for (const s of (stocks || [])) {
               const delta = deltas[s.plate_size] || 0;
               if (delta === 0) continue;
-              const beforeAvailable = s.available_quantity || 0;
-              const newAvailable = Math.max(0, beforeAvailable - delta);
-              console.debug('[Challan Delete][JAMA] plate=%s id=%s delta=%d beforeAvailable=%d newAvailable=%d', s.plate_size, s.id, delta, beforeAvailable, newAvailable);
+              const beforeOnRent = (s as any).on_rent_quantity || 0;
+              const newOnRent = Math.max(0, beforeOnRent + delta);
+              console.debug('[Challan Delete][JAMA][on_rent] plate=%s id=%s delta=%d beforeOnRent=%d newOnRent=%d', s.plate_size, s.id, delta, beforeOnRent, newOnRent);
               const { error: updErr } = await supabase
                 .from('stock')
-                .update({ available_quantity: newAvailable })
+                .update({ on_rent_quantity: newOnRent })
                 .eq('id', s.id);
               if (updErr) throw updErr;
-              applied.push({ id: s.id, previous: s.available_quantity || 0 });
+              applied.push({ id: s.id, previous: (s as any).on_rent_quantity || 0 });
             }
           } catch (uErr) {
             for (const a of applied) {
-              try { await supabase.from('stock').update({ available_quantity: a.previous }).eq('id', a.id); } catch (e) { console.error('revert failed', e); }
+              try { await supabase.from('stock').update({ on_rent_quantity: a.previous }).eq('id', a.id); } catch (e) { console.error('revert failed', e); }
             }
             throw uErr;
           }
