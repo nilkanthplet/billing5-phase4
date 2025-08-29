@@ -105,13 +105,10 @@ export function MobileStockPage() {
       const stockItem = stockItems.find(item => item.plate_size === plateSize);
       if (!stockItem) return;
 
-      const newAvailableQuantity = (values.total_quantity || stockItem.total_quantity) - stockItem.on_rent_quantity;
-
       const { error } = await supabase
         .from('stock')
         .update({
           total_quantity: values.total_quantity,
-          available_quantity: Math.max(0, newAvailableQuantity),
           updated_at: new Date().toISOString()
         })
         .eq('id', stockItem.id);
@@ -150,7 +147,8 @@ export function MobileStockPage() {
 
     return {
       totalStock: filteredStockItems.reduce((sum, item) => sum + (item?.total_quantity || 0), 0),
-      totalAvailable: filteredStockItems.reduce((sum, item) => sum + (item?.available_quantity || 0), 0),
+      // Remove Math.max(0, ...) to allow negative values
+      totalAvailable: filteredStockItems.reduce((sum, item) => sum + ((item?.total_quantity || 0) - (item?.on_rent_quantity || 0)), 0),
       totalOnRent: filteredStockItems.reduce((sum, item) => sum + (item?.on_rent_quantity || 0), 0),
       totalBorrowedStock
     };
@@ -190,7 +188,9 @@ export function MobileStockPage() {
             <div className="text-xs font-medium text-purple-600">કુલ સ્ટોક</div>
           </div>
           <div className="p-3 text-center bg-white border border-emerald-200 rounded-xl">
-            <div className="text-2xl font-bold text-emerald-700">{totals.totalAvailable}</div>
+            <div className={`text-2xl font-bold ${totals.totalAvailable < 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+              {totals.totalAvailable}
+            </div>
             <div className="text-xs font-medium text-emerald-600">ઉપલબ્ધ</div>
           </div>
           <div className="p-3 text-center bg-white border border-blue-200 rounded-xl">
@@ -221,7 +221,10 @@ export function MobileStockPage() {
                 const stock = stockMap[plateSize];
                 const borrowed = borrowedStockMap[plateSize] || 0;
                 const totalOut = (stock?.on_rent_quantity || 0) + borrowed;
-                const isLowStock = (stock?.available_quantity || 0) <= 5;
+                // Remove Math.max(0, ...) to allow negative values
+                const availableQuantity = stock ? (stock.total_quantity - stock.on_rent_quantity) : 0;
+                const isLowStock = availableQuantity <= 5 && availableQuantity >= 0;
+                const isNegativeStock = availableQuantity < 0;
                 
                 return (
                   <tr key={plateSize} className="border-b border-blue-100">
@@ -233,9 +236,13 @@ export function MobileStockPage() {
                     </td>
                     <td className="p-2 text-center">
                       <span className={`px-2 py-0.5 rounded-full ${
-                        isLowStock ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'
+                        isNegativeStock 
+                          ? 'bg-red-200 text-red-800 font-bold' 
+                          : isLowStock 
+                            ? 'bg-red-100 text-red-700' 
+                            : 'bg-green-100 text-green-700'
                       }`}>
-                        {stock?.available_quantity || 0}
+                        {availableQuantity}
                       </span>
                     </td>
                     <td className="p-2 text-center">
@@ -272,7 +279,11 @@ export function MobileStockPage() {
                 <td className="p-2 text-green-800">કુલ</td>
                 <td className="p-2 text-center text-purple-700">{totals.totalStock}</td>
                 <td className="p-2 text-center">
-                  <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full">
+                  <span className={`px-2 py-0.5 rounded-full ${
+                    totals.totalAvailable < 0 
+                      ? 'bg-red-200 text-red-800 font-bold' 
+                      : 'bg-green-100 text-green-700'
+                  }`}>
                     {totals.totalAvailable}
                   </span>
                 </td>
